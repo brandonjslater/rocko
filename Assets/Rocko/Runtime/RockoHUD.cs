@@ -52,6 +52,11 @@ namespace Rocko
                 Text(new Rect(46, 278, 320, 22), "¼ finish " + telemetry.QuarterFinishMPH.ToString("0.0") + " mph   ·   Max " + telemetry.MaximumMPH.ToString("0.0"), small, mint);
                 Fill(new Rect(28, 333, 355, 59), ink);
                 Text(new Rect(46, 343, 320, 43), telemetry.Status, small, Color.white);
+                Fill(new Rect(28, 404, 355, 112), ink);
+                Text(new Rect(46, 414, 320, 22), "WHEEL DIAGNOSTICS · contact " + car.GroundedWheels + "/4", small, mint);
+                Text(new Rect(46, 440, 320, 22), "Front RPM  " + car.wheels[0].rpm.ToString("0") + " / " + car.wheels[1].rpm.ToString("0"), small, Color.white);
+                Text(new Rect(46, 466, 320, 22), "Brake Nm F/R  " + car.wheels[0].brakeTorque.ToString("0") + " / " + car.wheels[2].brakeTorque.ToString("0"), small, Color.white);
+                Text(new Rect(46, 490, 320, 22), "Throttle " + car.controls.Throttle.ToString("0%") + " · Brake " + car.controls.Brake.ToString("0%"), small, Color.white);
             }
             Fill(new Rect(420, 675, 760, 38), ink);
             Text(new Rect(435, 683, 730, 25), string.IsNullOrEmpty(car.Notice) ? driver.Prompt : car.Notice, body, Color.white);

@@ -6,6 +6,21 @@ namespace Rocko.Tests
     public sealed class PowertrainTests
     {
         //
+        // @description - Ensure rolling resistance cannot pin a stopped car or propel it in reverse
+        // @return {Void} - NUnit assertions for forward, reverse, and near-zero motion
+        //
+        [Test]
+        public void RollingResistanceOpposesMotionWithoutHoldingLaunch()
+        {
+            Assert.That(DriveMath.RollingResistance(0, 130, 1025, 0.01f), Is.Zero);
+            Assert.That(DriveMath.RollingResistance(10, 130, 1025, 0.01f), Is.EqualTo(-130));
+            Assert.That(DriveMath.RollingResistance(-10, 130, 1025, 0.01f), Is.EqualTo(130));
+            float speed = 0.002f;
+            float force = DriveMath.RollingResistance(speed, 1300, 1025, 0.01f);
+            Assert.That(speed + force / 1025 * 0.01f, Is.EqualTo(0).Within(0.000001f));
+        }
+
+        //
         // @description - Check supplied torque and power anchors and prevent interpolation overshoot
         // @return {Void} - NUnit assertions for the baseline engine curve
         //

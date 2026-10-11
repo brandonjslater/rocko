@@ -9,6 +9,20 @@ namespace Rocko
         public const float WattsPerHP = 745.699872f;
 
         //
+        // @description - Oppose rolling motion without applying a wheel brake or reversing velocity
+        // @param {float} speed - Signed forward speed in meters per second
+        // @param {float} force - Nonnegative rolling resistance magnitude in newtons
+        // @param {float} mass - Chassis mass in kilograms
+        // @param {float} dt - Physics step in seconds
+        // @return {float} - Signed longitudinal resistance in newtons, zero at rest
+        //
+        public static float RollingResistance(float speed, float force, float mass, float dt)
+        {
+            if (dt <= 0 || mass <= 0 || Mathf.Abs(speed) < 0.001f) return 0;
+            return -Mathf.Sign(speed) * Mathf.Min(Mathf.Max(0, force), Mathf.Abs(speed) * mass / dt);
+        }
+
+        //
         // @description - Convert shaft torque and rotational speed to mechanical horsepower
         // @param {float} torqueNm - Signed shaft torque in newton meters
         // @param {float} rpm - Signed shaft speed in revolutions per minute
