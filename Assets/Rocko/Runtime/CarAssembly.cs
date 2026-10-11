@@ -15,7 +15,10 @@ namespace Rocko
         {
             GameObject root = new GameObject("Rocko · Scirocco II GTX 16V");
             root.transform.position = spawn;
-            root.AddComponent<Rigidbody>();
+            Rigidbody body = root.AddComponent<Rigidbody>();
+            // 🚗 WheelCollider calculates supported mass when it is created.
+            body.mass = spec.curbMass + spec.driverMass;
+            body.centerOfMass = new Vector3(0, 0.48f, 0.24f);
             RockoVehicle car = root.AddComponent<RockoVehicle>();
             car.spec = spec; car.controls = input;
             Transform t = root.transform;

@@ -1,5 +1,14 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Driving and world-text fix
+
+- Configure chassis mass before creating WheelColliders, then recalculate suspension loads after the final center-of-mass setup.
+- Wake a sleeping parked car when driving or shifting input arrives.
+- Render world labels with depth testing and fog, before the windscreen glass. Buildings, the car body, and sign boards now occlude these labels; the HUD remains a screen overlay.
+- Keep the neutral/first-gear instruction visible after the temporary reset notice expires.
+
+Quick check: open **Rocko → Open Prototype Scene**, press Play, then **F2 → Shift → W**. F2 seats you at the straight; Shift selects first gear; W accelerates. Inspect road signs from inside the garage and behind sign boards to check occlusion. Run the PlayMode smoke test for tire contact, supported mass, launch from a sleeping chassis, and braking. These changes have not been run in Unity in the authoring environment.
+
 A first-person Scirocco II sandbox focused on developing the driving model before adding car building or survival systems.
 
 **Delivery status:** Unity project source, not a compiled game. C# syntax and project wiring were checked here. Unity is not installed in the authoring environment, so compilation, shaders, controller hardware, driving performance, and visual appearance have **not** been verified in the Unity Editor. The included Unity tests still need to be run.

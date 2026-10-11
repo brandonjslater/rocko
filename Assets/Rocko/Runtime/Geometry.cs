@@ -6,6 +6,7 @@ namespace Rocko
     public static class Geometry
     {
         private static Font labelFont;
+        private static Material labelMaterial;
         //
         // @description - Create a shared opaque material for the built-in render pipeline
         // @param {string} name - Material label
@@ -146,13 +147,34 @@ namespace Rocko
             g.transform.localPosition = position;
             g.transform.localRotation = Quaternion.identity;
             TextMesh t = g.AddComponent<TextMesh>();
-            if (labelFont == null) labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (labelFont == null)
+            {
+                labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                Font.textureRebuilt -= RefreshLabelAtlas;
+                Font.textureRebuilt += RefreshLabelAtlas;
+            }
             t.font = labelFont;
-            g.GetComponent<MeshRenderer>().sharedMaterial = labelFont.material;
+            if (labelMaterial == null)
+                labelMaterial = new Material(Resources.Load<Shader>("RockoWorldText")) { name = "Depth-tested world labels" };
+            MeshRenderer renderer = g.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = labelMaterial;
+            // Use the font's live atlas, including after Unity rebuilds its glyphs.
+            labelMaterial.mainTexture = labelFont.material.mainTexture;
             t.text = text; t.fontSize = 64; t.characterSize = size;
             t.anchor = TextAnchor.MiddleCenter; t.alignment = TextAlignment.Center;
             t.color = new Color(0.86f, 0.94f, 0.94f);
             return g;
+        }
+
+        //
+        // @description - Keep world labels connected to the rebuilt dynamic font atlas
+        // @param {Font} font - Font whose glyph texture changed
+        // @return {Void} - Updates the shared world-text material texture
+        //
+        private static void RefreshLabelAtlas(Font font)
+        {
+            if (font == labelFont && labelMaterial != null)
+                labelMaterial.mainTexture = font.material.mainTexture;
         }
     }
 }

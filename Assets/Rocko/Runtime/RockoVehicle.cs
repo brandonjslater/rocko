@@ -50,6 +50,8 @@ namespace Rocko
             Body.angularDamping = 0.08f;
             Body.maxAngularVelocity = 15f;
             Body.solverIterations = 12;
+            // Recalculate all four suspension loads after the final chassis setup.
+            wheels[0].ResetSprungMasses();
             wheels[0].ConfigureVehicleSubsteps(8, 12, 6);
             ResetAt(transform.position, transform.rotation);
         }
@@ -110,6 +112,9 @@ namespace Rocko
             float dt = Time.fixedDeltaTime;
             float inputThrottle = occupied ? controls.Throttle : 0;
             float brake = occupied ? controls.Brake : 0;
+            // A parked chassis can sleep; player input must resume wheel simulation.
+            if (occupied && (inputThrottle > 0.01f || brake > 0.01f ||
+                Mathf.Abs(controls.Steer) > 0.01f || Shifting)) Body.WakeUp();
             throttle = Mathf.MoveTowards(throttle, inputThrottle, dt * 4f);
             steering = Mathf.MoveTowards(steering, occupied ? controls.Steer : 0, dt * (Mathf.Abs(ForwardSpeed) < 5 ? 2.3f : 1.25f));
             if (Shifting)

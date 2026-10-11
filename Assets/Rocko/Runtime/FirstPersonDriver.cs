@@ -55,7 +55,10 @@ namespace Rocko
             if (Driving)
             {
                 yaw = Mathf.Clamp(yaw, -135, 135);
-                Prompt = car.SpeedMPH < 1.1f ? "E / A  ·  Exit Rocko" : "Stop to exit  ·  V / R-stick  ·  Center view";
+                Prompt = !car.EngineRunning ? "I / Y  ·  Restart engine" : car.Gear == 0
+                    ? "NEUTRAL · Shift / RB for 1st · Ctrl / LB for reverse · W / RT to accelerate"
+                    : car.SpeedMPH < 1.1f ? "W / RT  ·  Accelerate     E / A  ·  Exit Rocko"
+                    : "Stop to exit  ·  V / R-stick  ·  Center view";
                 if (controls.Interact && car.SpeedMPH < 1.1f) TryExit();
             }
             else

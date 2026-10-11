@@ -32,12 +32,24 @@ namespace Rocko.Tests
             car.controls.Throttle = 0;
             for (int i = 0; i < 100; i++) yield return new WaitForFixedUpdate();
             Assert.That(car.SpeedMPH, Is.LessThan(0.5f), "Neutral should not propel the car.");
+            float supportedMass = 0;
+            foreach (WheelCollider wheel in car.wheels)
+            {
+                Assert.That(wheel.isGrounded, Is.True, "Every tire should contact the flat staging apron.");
+                Assert.That(wheel.sprungMass, Is.GreaterThan(100f), "Suspension must use the loaded car mass.");
+                supportedMass += wheel.sprungMass;
+            }
+            Assert.That(supportedMass, Is.EqualTo(car.Body.mass).Within(1f));
+            car.Body.Sleep();
+            Assert.That(car.Body.IsSleeping(), Is.True);
             car.RequestShift(1);
             car.controls.Throttle = 1;
             for (int i = 0; i < 400; i++) yield return new WaitForFixedUpdate();
+            Assert.That(car.Body.IsSleeping(), Is.False, "Driving input should wake the parked chassis.");
             Assert.That(car.Gear, Is.EqualTo(1));
             Assert.That(float.IsNaN(car.RPM) || float.IsInfinity(car.RPM), Is.False);
             Assert.That(car.ForwardSpeed, Is.GreaterThan(2f), "Assisted first-gear launch should move forward.");
+            Assert.That(car.EngineRunning, Is.True, "The assisted launch should not stall the engine.");
             Assert.That(car.transform.position.y, Is.InRange(-0.1f, 1f), "Car should stay on the track.");
             car.controls.Throttle = 0;
             car.controls.Brake = 1;
