@@ -1,5 +1,11 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Follow-up: clutch remains slipping
+
+Launch assistance now blends into full clutch pressure between idle + 100 and idle + 900 engine-equivalent RPM, calculated from actual road speed. At the upper threshold, launch assistance ends. It re-arms only when both road-equivalent and gearbox RPM fall below idle + 100, so engine flare or tire slip alone cannot reopen the clutch while driving. Gear changes remain manual and the clutch pedal still overrides assistance.
+
+The diagnostics panel includes clutch engagement percentage and engine/gearbox RPM difference. During **F2 → Shift → hold W**, expect initial launch slip, then **100%** clutch pressure and a small RPM gap. Full pressure does not by itself prove synchronization. The Unity smoke test now requires actual clutch lock during launch and sustained full pressure afterward. Unity execution is still pending in the authoring environment.
+
 ### Follow-up: engine revs but the car stays still
 
 Rolling resistance now acts as a force opposing chassis motion, instead of continuously applying WheelCollider brake torque. At rest it applies no force; at very low speed it is capped so it cannot reverse the car. Wheel brakes are reserved for the service pedal and parking/handbrake. Manual gear selection and the existing clutch model are unchanged.

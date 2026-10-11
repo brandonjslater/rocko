@@ -31,6 +31,7 @@ namespace Rocko
         public string Notice { get; private set; } = "Select 1st with Shift. W to accelerate.";
         private float omega, throttle, steering, shiftTime, noticeTime;
         private int pendingGear;
+        private bool assistingLaunch = true;
         private Vector3 previousVelocity;
         private readonly bool[] grounded = new bool[4];
         private readonly WheelHit[] contacts = new WheelHit[4];
@@ -167,13 +168,13 @@ namespace Rocko
             if (clutchAssist && engagement > 0)
             {
                 float shaft = ShaftRPM();
-                if (shaft < 1500 || RPM - shaft > 350)
-                {
-                    float targetRPM = Mathf.Lerp(1200, 2600, throttle);
-                    float capacity = Mathf.Max(0, netTorque + (RPM - targetRPM) * 0.15f);
-                    float slipReduction = 1f / (1f + Mathf.Max(0, MaxDrivenSlip - 0.08f) * 10f);
-                    engagement *= Mathf.Clamp01(capacity / spec.clutchCapacityNm) * slipReduction;
-                }
+                float roadRPM = Mathf.Abs(ForwardSpeed * spec.Ratio(Gear)) * 30f / (Mathf.PI * spec.tireRadius);
+                // 🚗 Use road speed so spinning tires cannot prematurely finish the launch.
+                if (roadRPM < spec.idleRPM + 100 && shaft < spec.idleRPM + 100) assistingLaunch = true;
+                else if (roadRPM >= spec.idleRPM + 900) assistingLaunch = false;
+                if (assistingLaunch)
+                    engagement *= DriveMath.LaunchClutchEngagement(RPM, roadRPM, netTorque, throttle,
+                        MaxDrivenSlip, spec.clutchCapacityNm, spec.idleRPM);
                 if (brake > 0.2f && shaft < 1200) engagement = 0;
             }
             ClutchEngagement = Mathf.MoveTowards(ClutchEngagement, engagement, dt * (engagement < ClutchEngagement ? 20 : 3));
@@ -258,6 +259,7 @@ namespace Rocko
             // Re-enable each wheel to discard stale contact / rotational state after teleporting.
             foreach (WheelCollider w in wheels) { w.enabled = false; w.motorTorque = 0; w.brakeTorque = 0; w.steerAngle = 0; w.enabled = true; }
             Gear = pendingGear = 0;
+            assistingLaunch = true;
             shiftTime = throttle = steering = ClutchEngagement = 0;
             AxleTorqueNm = WheelHP = LongitudinalG = LateralG = 0;
             previousVelocity = Vector3.zero;
