@@ -6,6 +6,21 @@ namespace Rocko.Tests
     public sealed class PowertrainTests
     {
         //
+        // @description - Verify launch pressure completes engagement despite engine flare or tire slip
+        // @return {Void} - NUnit assertions for standstill, transition, and completed launches
+        //
+        [Test]
+        public void LaunchAssistanceCompletesClutchEngagement()
+        {
+            float launch = DriveMath.LaunchClutchEngagement(2600, 0, 134, 1, 0, 260, 900);
+            float moving = DriveMath.LaunchClutchEngagement(2600, 1400, 134, 1, 0, 260, 900);
+            Assert.That(launch, Is.InRange(0.5f, 0.6f));
+            Assert.That(moving, Is.GreaterThan(launch).And.LessThan(1f));
+            Assert.That(DriveMath.LaunchClutchEngagement(6000, 1800, 160, 1, 1, 260, 900), Is.EqualTo(1));
+            Assert.That(DriveMath.LaunchClutchEngagement(900, 0, 0, 0, 0, 260, 900), Is.Zero);
+        }
+
+        //
         // @description - Ensure rolling resistance cannot pin a stopped car or propel it in reverse
         // @return {Void} - NUnit assertions for forward, reverse, and near-zero motion
         //

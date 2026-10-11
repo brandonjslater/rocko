@@ -46,9 +46,11 @@ namespace Rocko.Tests
             Assert.That(car.Body.IsSleeping(), Is.True);
             car.RequestShift(1);
             car.controls.Throttle = 1;
+            bool lockedAfterLaunch = false;
             for (int i = 0; i < 400; i++)
             {
                 yield return new WaitForFixedUpdate();
+                lockedAfterLaunch |= car.ClutchLocked;
                 foreach (WheelCollider wheel in car.wheels)
                     Assert.That(wheel.brakeTorque, Is.Zero, "Rolling resistance must not engage wheel brakes during launch.");
             }
@@ -57,6 +59,8 @@ namespace Rocko.Tests
             Assert.That(float.IsNaN(car.RPM) || float.IsInfinity(car.RPM), Is.False);
             Assert.That(car.ForwardSpeed, Is.GreaterThan(2f), "Assisted first-gear launch should move forward.");
             Assert.That(car.EngineRunning, Is.True, "The assisted launch should not stall the engine.");
+            Assert.That(lockedAfterLaunch, Is.True, "Launch assistance must reach a synchronized, fully engaged clutch.");
+            Assert.That(car.ClutchEngagement, Is.GreaterThan(0.95f), "Clutch pressure must stay fully engaged after launch.");
             Assert.That(car.transform.position.y, Is.InRange(-0.1f, 1f), "Car should stay on the track.");
             car.controls.Throttle = 0;
             car.controls.Brake = 1;
