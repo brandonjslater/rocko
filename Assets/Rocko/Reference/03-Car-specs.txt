@@ -1,0 +1,18 @@
+Make: VW
+Model: Scirocco II GTX
+Factory code: Type 53B
+Year: 1985–1989
+Num. of Doors : 	3 doors 
+Engine: 1.8 L EA827 16v I4; Four-cylinder; water-cooled
+Bore x Stroke : 3.19 x 3.4 inches 81 x 86.4 mm
+Power kW / PS at rpm: 102 / 139 / 6,100
+Fuel type : 	Petrol 
+Fuel System : 	Inj. Mec. 
+Max. tourqe (Nm at rpm): 165 / 4,600
+Drive: FWD
+Wheelbase (mm): 2,400
+Length / width / height (mm): 4,050 / 1,625 / 1,280
+Transmission: 5 speed manual
+Top Speed : 	131 Mph / 210 km/h
+Curb Weight : 	2094 lbs / 950 kg
+Weight/Power Output Ratio : 	6.8 kg/hp 

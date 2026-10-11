@@ -1,0 +1,5 @@
+{
+  "name": "Rocko.Runtime",
+  "rootNamespace": "Rocko",
+  "references": ["Unity.InputSystem"]
+}

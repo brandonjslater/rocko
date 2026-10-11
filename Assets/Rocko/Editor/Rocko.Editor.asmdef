@@ -1,0 +1,6 @@
+{
+  "name": "Rocko.Editor",
+  "rootNamespace": "Rocko.Editor",
+  "references": ["Rocko.Runtime"],
+  "includePlatforms": ["Editor"]
+}

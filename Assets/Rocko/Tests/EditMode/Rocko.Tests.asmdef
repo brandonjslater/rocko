@@ -1,0 +1,6 @@
+{
+  "name": "Rocko.Tests",
+  "references": ["Rocko.Runtime"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

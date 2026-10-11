@@ -1,0 +1,5 @@
+{
+  "name": "Rocko.PlayTests",
+  "references": ["Rocko.Runtime"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}
