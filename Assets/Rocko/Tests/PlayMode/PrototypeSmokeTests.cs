@@ -39,6 +39,7 @@ namespace Rocko.Tests
             yield return null;
             RockoVehicle car = Object.FindFirstObjectByType<RockoVehicle>();
             FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            TestTelemetry telemetry = Object.FindFirstObjectByType<TestTelemetry>();
             driver.SetPaused(false);
             car.controls.enabled = false;
             car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
@@ -49,6 +50,9 @@ namespace Rocko.Tests
             car.controls.Clutch = assist ? 0 : 1;
             try
             {
+                telemetry.RecordEveryPhysicsStep = true;
+                telemetry.ToggleRecording();
+                Assert.That(telemetry.Recording, Is.True, "Test could not create the clutch diagnostic CSV.");
                 for (int i = 0; i < 100; i++) yield return new WaitForFixedUpdate();
                 car.RequestShift(1);
                 car.controls.Throttle = 1;
@@ -72,7 +76,13 @@ namespace Rocko.Tests
                     Assert.That(car.EngineRunning, Is.True);
                     Assert.That(car.ClutchEngagement, Is.GreaterThan(0.95f));
                     float shaft = (car.wheels[0].rpm + car.wheels[1].rpm) * 0.5f * car.spec.Ratio(car.Gear);
-                    Assert.That(Mathf.Abs(car.RPM - shaft), Is.LessThan(80f), "Engine and gearbox must stay synchronized, not just meet for one tick.");
+                    string state = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "Engine and gearbox must stay synchronized. Mode={0}; engine={1:F1} RPM; shaft={2:F1} RPM; signed gap={3:F1}; " +
+                        "clutch={4:P1}; torque={5:F1} Nm; capacity={6:F1} Nm; inertia={7:F5}; slip={8:F3}; speed={9:F2} m/s; contacts={10}/4. CSV: {11}",
+                        assist ? "assist" : "manual", car.RPM, shaft, car.RPM - shaft, car.ClutchEngagement,
+                        car.ClutchTorqueNm, car.spec.clutchCapacityNm * car.ClutchEngagement, car.ReflectedInertia,
+                        car.MaxDrivenSlip, car.ForwardSpeed, car.GroundedWheels, telemetry.LastFile);
+                    Assert.That(Mathf.Abs(car.RPM - shaft), Is.LessThan(80f), state);
                     Assert.That(car.ClutchLocked, Is.True);
                 }
                 car.controls.Clutch = 1;
@@ -81,6 +91,8 @@ namespace Rocko.Tests
             }
             finally
             {
+                telemetry.StopRecording();
+                Debug.Log("Rocko clutch trace (" + (assist ? "assist" : "manual") + "): " + telemetry.LastFile);
                 driver.ResetGarage();
                 car.controls.enabled = true;
             }

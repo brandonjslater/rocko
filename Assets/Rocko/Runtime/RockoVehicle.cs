@@ -22,6 +22,10 @@ namespace Rocko
         public float ClutchEngagement { get; private set; }
         public float MaxDrivenSlip { get; private set; }
         public int GroundedWheels { get; private set; }
+        public float SampledEngineRPM { get; private set; }
+        public float SampledShaftRPM { get; private set; }
+        public float ReflectedInertia { get; private set; }
+        public float ClutchTorqueNm { get; private set; }
         public float SpeedMPH { get { return Body.linearVelocity.magnitude * 2.2369363f; } }
         public float ForwardSpeed { get { return Vector3.Dot(Body.linearVelocity, transform.forward); } }
         public bool EngineRunning { get; private set; }
@@ -181,8 +185,12 @@ namespace Rocko
             if (Shifting || Gear == 0) ClutchEngagement = 0;
             float ratio = spec.Ratio(Gear);
             float shaftOmega = (wheels[0].rpm + wheels[1].rpm) * 0.5f * ratio * Mathf.PI / 30f;
+            SampledEngineRPM = omega * 30f / Mathf.PI;
+            SampledShaftRPM = shaftOmega * 30f / Mathf.PI;
+            ReflectedInertia = ReflectedLoadInertia(ratio);
             float transmitted = DriveMath.ClutchTorque(omega, shaftOmega, netTorque, spec.engineInertia, dt,
-                spec.clutchCapacityNm * ClutchEngagement, ReflectedLoadInertia(ratio));
+                spec.clutchCapacityNm * ClutchEngagement, ReflectedInertia);
+            ClutchTorqueNm = transmitted;
             omega = Mathf.Clamp(omega + (netTorque - transmitted) / spec.engineInertia * dt, 0, 10000f * Mathf.PI / 30f);
             RPM = omega * 30f / Mathf.PI;
             if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Y to restart with clutch disengaged."); }

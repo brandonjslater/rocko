@@ -1,5 +1,13 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Clutch investigation: automatic runtime traces
+
+Both sustained-lock PlayMode tests now record a CSV on every physics step, starting before launch and flushing on success or failure. The Console prints `Rocko clutch trace (assist/manual):` followed by the saved file path. RPM-gap assertion messages also include that path and a signed engine/shaft comparison, clutch pressure, transmitted torque, capacity, estimated inertia, tire slip, speed, and wheel contact count.
+
+These changes gather evidence; they do not change clutch physics or relax the 80 RPM test threshold. The CSV's `engine_rpm_before_solve` and `shaft_rpm_before_solve` are sampled together before integration. `rpm` is the resulting engine speed; wheel RPM columns are still the wheel state before the upcoming PhysX step. Compare the next row's shaft speed to see PhysX's response. F5 recordings retain the usual 20 Hz rate, with the additional diagnostic columns.
+
+Run `AssistedClutchHoldsLockDuringCruise` and `ManualClutchHoldsLockDuringCruise`, then attach the two CSVs identified in the Console. They contain simulation values only, with no account or machine identifiers in their rows.
+
 ### Follow-up: synchronization in both clutch modes
 
 The clutch torque solver now accounts for both engine inertia and the finite driveline load. The earlier solver pulled engine speed toward a sampled shaft speed as though the shaft could not accelerate, while simultaneously applying torque that changed that shaft speed. This could produce repeated speed corrections in either clutch mode.
