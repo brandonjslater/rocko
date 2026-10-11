@@ -67,7 +67,8 @@ namespace Rocko.Tests
                     yield return new WaitForFixedUpdate();
                 Assert.That(car.ForwardSpeed, Is.GreaterThanOrEqualTo(5f), "Launch must complete before testing cruise lock.");
                 car.controls.Throttle = 0.3f;
-                for (int i = 0; i < 100; i++) yield return new WaitForFixedUpdate();
+                // Allow bounded convergence after the large throttle reduction, then demand continuous lock.
+                for (int i = 0; i < 300 && !car.ClutchLocked; i++) yield return new WaitForFixedUpdate();
                 float end = Time.time + 2f;
                 while (Time.time < end)
                 {
@@ -75,6 +76,8 @@ namespace Rocko.Tests
                     yield return null;
                     Assert.That(car.EngineRunning, Is.True);
                     Assert.That(car.ClutchEngagement, Is.GreaterThan(0.95f));
+                    Assert.That(Mathf.Abs(car.ClutchTorqueNm), Is.LessThanOrEqualTo(car.spec.clutchCapacityNm + 0.01f),
+                        "Static coupling must remain within the physical clutch capacity.");
                     float shaft = (car.wheels[0].rpm + car.wheels[1].rpm) * 0.5f * car.spec.Ratio(car.Gear);
                     string state = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                         "Engine and gearbox must stay synchronized. Mode={0}; engine={1:F1} RPM; shaft={2:F1} RPM; signed gap={3:F1}; " +

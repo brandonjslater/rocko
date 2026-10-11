@@ -1,5 +1,13 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### CSV-confirmed clutch oscillation and static coupling
+
+The October 11 runtime traces show repeated +260/-260 Nm clutch commands and multi-thousand-RPM shaft changes across 10 ms steps. The estimated-inertia solver did not represent WheelCollider's contact response accurately enough to synchronize the two separately integrated speeds.
+
+Runtime coupling now has sliding and static modes. Sliding torque uses a 0.35-second speed correction and an 800 Nm/s command slew limit, constrained to friction capacity and to oppose relative motion. Static coupling may start only within 40 RPM, with full clutch pressure and enough torque capacity. While static coupling holds, engine and input shaft are one speed; transmitted torque subtracts the flywheel acceleration demand from engine torque. Shaft acceleration is filtered over 80 ms because the external WheelCollider solver remains discrete. Torque overload, pedal release, shifts, and resets release coupling. This is a changed physical model, not just a changed HUD label; its interaction with Unity still requires PlayMode verification.
+
+The older finite-inertia helper and its mathematical tests remain as reference; the vehicle no longer calls it. `reflected_inertia_kgm2` is diagnostic only. Tests now allow at most three seconds to synchronize after the launch-to-cruise throttle change, followed by the unchanged two seconds of continuous lock below 80 RPM. Additional tests exercise static torque balance, capacity release, pedal release, and reversal behavior. Automatic CSV recording remains enabled in the two cruise tests.
+
 ### Clutch investigation: automatic runtime traces
 
 Both sustained-lock PlayMode tests now record a CSV on every physics step, starting before launch and flushing on success or failure. The Console prints `Rocko clutch trace (assist/manual):` followed by the saved file path. RPM-gap assertion messages also include that path and a signed engine/shaft comparison, clutch pressure, transmitted torque, capacity, estimated inertia, tire slip, speed, and wheel contact count.

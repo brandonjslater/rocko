@@ -2,6 +2,66 @@ using UnityEngine;
 
 namespace Rocko
 {
+    // Separates sliding friction from static clutch coupling across PhysX steps.
+    public sealed class ClutchCoupling
+    {
+        public bool Locked { get; private set; }
+        public float Torque { get; private set; }
+        private bool sampled;
+        private float previousShaft, shaftAcceleration;
+
+        //
+        // @description - Release coupling and discard history when shifting or resetting
+        // @return {Void} - Clears lock, torque, and shaft acceleration history
+        //
+        public void Reset()
+        {
+            Locked = sampled = false;
+            Torque = previousShaft = shaftAcceleration = 0;
+        }
+
+        //
+        // @description - Solve sliding or static clutch torque using the observed gearbox response
+        // @param {float} engine - Engine angular speed in radians per second
+        // @param {float} shaft - Gearbox input angular speed in radians per second
+        // @param {float} net - Net engine torque in newton meters
+        // @param {float} inertia - Engine inertia in kg m²
+        // @param {float} dt - Physics timestep in seconds
+        // @param {float} capacity - Available friction torque in newton meters
+        // @param {bool} fullPressure - Whether the pedal permits static coupling
+        // @return {float} - Capacity-limited clutch torque; Locked selects a shared shaft speed
+        //
+        public float Step(float engine, float shaft, float net, float inertia, float dt, float capacity, bool fullPressure)
+        {
+            dt = Mathf.Max(0.0001f, dt);
+            capacity = Mathf.Max(0, capacity);
+            float acceleration = sampled ? (shaft - previousShaft) / dt : 0;
+            shaftAcceleration = Mathf.Lerp(shaftAcceleration, acceleration, 1f - Mathf.Exp(-dt / 0.08f));
+            previousShaft = shaft;
+            sampled = true;
+            // Static friction must accelerate the flywheel as well as transmit engine torque.
+            float required = net - inertia * shaftAcceleration;
+            bool canHold = fullPressure && capacity > 0 && shaft >= 0 && Mathf.Abs(required) <= capacity;
+            float gap = engine - shaft;
+            if (!canHold) Locked = false;
+            else if (Mathf.Abs(gap) < 40f * Mathf.PI / 30f) Locked = true;
+            if (Locked)
+            {
+                Torque = required;
+                return Torque;
+            }
+            // Correct slip over 0.35 s instead of chasing a stale wheel speed in one tick.
+            float target = net + inertia * gap / 0.35f;
+            target = Mathf.Clamp(target, -capacity, capacity);
+            Torque = Mathf.MoveTowards(Torque, target, 800f * dt);
+            Torque = Mathf.Clamp(Torque, -capacity, capacity);
+            // Sliding friction must oppose relative rotation, including after a sign change.
+            if (gap > 0) Torque = Mathf.Max(0, Torque);
+            else if (gap < 0) Torque = Mathf.Min(0, Torque);
+            return Torque;
+        }
+    }
+
     public static class DriveMath
     {
         public const float MetersPerMile = 1609.344f;

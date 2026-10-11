@@ -13,7 +13,7 @@ namespace Rocko
         public bool occupied, clutchAssist = true;
         public Rigidbody Body { get; private set; }
         public int Gear { get; private set; }
-        public float RPM { get; private set; }
+        public float RPM { get { return coupling.Locked ? Mathf.Max(0, ShaftRPM()) : omega * 30f / Mathf.PI; } }
         public float WheelHP { get; private set; }
         public float AxleTorqueNm { get; private set; }
         public float CrankTorqueNm { get; private set; }
@@ -30,12 +30,13 @@ namespace Rocko
         public float ForwardSpeed { get { return Vector3.Dot(Body.linearVelocity, transform.forward); } }
         public bool EngineRunning { get; private set; }
         public bool Shifting { get { return shiftTime > 0; } }
-        public bool ClutchLocked { get { return Gear != 0 && ClutchEngagement > 0.95f && Mathf.Abs(RPM - ShaftRPM()) < 80f; } }
+        public bool ClutchLocked { get { return coupling.Locked; } }
         public string Surface { get; private set; } = "Asphalt";
         public string Notice { get; private set; } = "Select 1st with Shift. W to accelerate.";
         private float omega, throttle, steering, shiftTime, noticeTime;
         private int pendingGear;
         private bool assistingLaunch = true;
+        private readonly ClutchCoupling coupling = new ClutchCoupling();
         private Vector3 previousVelocity;
         private readonly bool[] grounded = new bool[4];
         private readonly WheelHit[] contacts = new WheelHit[4];
@@ -76,7 +77,7 @@ namespace Rocko
                 if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / X to shift")); }
                 if (controls.Restart && !EngineRunning)
                 {
-                    if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; }
+                    if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { coupling.Reset(); EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; }
                     else SetNotice("Depress clutch or select neutral to start.");
                 }
             }
@@ -105,6 +106,8 @@ namespace Rocko
             if (!clutchAssist && controls.Clutch < 0.8f && target != 0)
             { SetNotice("Hold C / X to disengage the clutch first."); return; }
             pendingGear = target;
+            if (coupling.Locked) omega = Mathf.Max(0, ShaftRPM()) * Mathf.PI / 30f;
+            coupling.Reset();
             shiftTime = 0.24f;
         }
 
@@ -159,7 +162,8 @@ namespace Rocko
             float resistance = DriveMath.RollingResistance(ForwardSpeed, rollingForce, Body.mass, dt);
             Body.AddForce(transform.forward * resistance);
 
-            RPM = omega * 30f / Mathf.PI;
+            // A locked clutch is one rotational degree of freedom, not two independent integrators.
+            if (coupling.Locked) omega = Mathf.Max(0, ShaftRPM()) * Mathf.PI / 30f;
             float fuel = Shifting ? 0 : throttle;
             if (RPM > spec.redlineRPM) fuel = 0;
             float netTorque = EngineRunning ? spec.torqueCurve.Evaluate(RPM) * fuel : 0;
@@ -188,11 +192,11 @@ namespace Rocko
             SampledEngineRPM = omega * 30f / Mathf.PI;
             SampledShaftRPM = shaftOmega * 30f / Mathf.PI;
             ReflectedInertia = ReflectedLoadInertia(ratio);
-            float transmitted = DriveMath.ClutchTorque(omega, shaftOmega, netTorque, spec.engineInertia, dt,
-                spec.clutchCapacityNm * ClutchEngagement, ReflectedInertia);
+            float transmitted = coupling.Step(omega, shaftOmega, netTorque, spec.engineInertia, dt,
+                spec.clutchCapacityNm * ClutchEngagement, ClutchEngagement > 0.95f && Gear != 0 && !Shifting && occupied);
             ClutchTorqueNm = transmitted;
-            omega = Mathf.Clamp(omega + (netTorque - transmitted) / spec.engineInertia * dt, 0, 10000f * Mathf.PI / 30f);
-            RPM = omega * 30f / Mathf.PI;
+            omega = coupling.Locked ? Mathf.Max(0, shaftOmega)
+                : Mathf.Clamp(omega + (netTorque - transmitted) / spec.engineInertia * dt, 0, 10000f * Mathf.PI / 30f);
             if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Y to restart with clutch disengaged."); }
             AxleTorqueNm = transmitted * ratio * (transmitted >= 0 ? spec.drivelineEfficiency : 1f / spec.drivelineEfficiency);
             wheels[0].motorTorque = AxleTorqueNm * 0.5f;
@@ -287,11 +291,11 @@ namespace Rocko
             foreach (WheelCollider w in wheels) { w.enabled = false; w.motorTorque = 0; w.brakeTorque = 0; w.steerAngle = 0; w.enabled = true; }
             Gear = pendingGear = 0;
             assistingLaunch = true;
+            coupling.Reset();
             shiftTime = throttle = steering = ClutchEngagement = 0;
             AxleTorqueNm = WheelHP = LongitudinalG = LateralG = 0;
             previousVelocity = Vector3.zero;
             omega = spec.idleRPM * Mathf.PI / 30f;
-            RPM = spec.idleRPM;
             EngineRunning = true;
             Physics.SyncTransforms();
             Body.WakeUp();
