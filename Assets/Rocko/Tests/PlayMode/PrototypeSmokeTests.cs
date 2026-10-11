@@ -29,6 +29,8 @@ namespace Rocko.Tests
             car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
             car.occupied = true;
             car.controls.Clutch = 0;
+            car.controls.Brake = 0;
+            car.controls.Handbrake = false;
             car.controls.Throttle = 0;
             for (int i = 0; i < 100; i++) yield return new WaitForFixedUpdate();
             Assert.That(car.SpeedMPH, Is.LessThan(0.5f), "Neutral should not propel the car.");
@@ -44,7 +46,12 @@ namespace Rocko.Tests
             Assert.That(car.Body.IsSleeping(), Is.True);
             car.RequestShift(1);
             car.controls.Throttle = 1;
-            for (int i = 0; i < 400; i++) yield return new WaitForFixedUpdate();
+            for (int i = 0; i < 400; i++)
+            {
+                yield return new WaitForFixedUpdate();
+                foreach (WheelCollider wheel in car.wheels)
+                    Assert.That(wheel.brakeTorque, Is.Zero, "Rolling resistance must not engage wheel brakes during launch.");
+            }
             Assert.That(car.Body.IsSleeping(), Is.False, "Driving input should wake the parked chassis.");
             Assert.That(car.Gear, Is.EqualTo(1));
             Assert.That(float.IsNaN(car.RPM) || float.IsInfinity(car.RPM), Is.False);
@@ -55,6 +62,10 @@ namespace Rocko.Tests
             car.controls.Brake = 1;
             for (int i = 0; i < 300; i++) yield return new WaitForFixedUpdate();
             Assert.That(car.SpeedMPH, Is.LessThan(1f), "Service brakes should stop the first-gear run.");
+            car.controls.Brake = 0;
+            car.controls.Throttle = 1;
+            for (int i = 0; i < 300; i++) yield return new WaitForFixedUpdate();
+            Assert.That(car.ForwardSpeed, Is.GreaterThan(2f), "Releasing the brake must allow another launch.");
             driver.ResetGarage();
             Assert.That(driver.Driving, Is.False);
             car.controls.enabled = true;

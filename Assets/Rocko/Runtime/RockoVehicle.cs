@@ -21,6 +21,7 @@ namespace Rocko
         public float LateralG { get; private set; }
         public float ClutchEngagement { get; private set; }
         public float MaxDrivenSlip { get; private set; }
+        public int GroundedWheels { get; private set; }
         public float SpeedMPH { get { return Body.linearVelocity.magnitude * 2.2369363f; } }
         public float ForwardSpeed { get { return Vector3.Dot(Body.linearVelocity, transform.forward); } }
         public bool EngineRunning { get; private set; }
@@ -124,6 +125,7 @@ namespace Rocko
             }
             MaxDrivenSlip = 0;
             int groundCount = 0;
+            float rollingForce = 0;
             for (int i = 0; i < 4; i++)
             {
                 grounded[i] = wheels[i].GetGroundHit(out contacts[i]);
@@ -141,11 +143,16 @@ namespace Rocko
                 WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
                 lateral.stiffness = grip;
                 wheels[i].sidewaysFriction = lateral;
-                float rollingBrake = grounded[i] ? rolling * contacts[i].force * spec.tireRadius : 0;
-                wheels[i].brakeTorque = brake * (i < 2 ? 900f : 520f) + rollingBrake;
+                if (grounded[i]) rollingForce += rolling * Mathf.Max(0, contacts[i].force);
+                // 🚗 Only the brake pedal and handbrake may command wheel brakes.
+                wheels[i].brakeTorque = brake * (i < 2 ? 900f : 520f);
                 if (i >= 2 && (!occupied || controls.Handbrake)) wheels[i].brakeTorque += 1600f;
             }
             if (groundCount == 0) Surface = "Airborne";
+            GroundedWheels = groundCount;
+            // Rolling resistance opposes existing motion and cannot hold a launch.
+            float resistance = DriveMath.RollingResistance(ForwardSpeed, rollingForce, Body.mass, dt);
+            Body.AddForce(transform.forward * resistance);
 
             RPM = omega * 30f / Mathf.PI;
             float fuel = Shifting ? 0 : throttle;

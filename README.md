@@ -1,5 +1,11 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Follow-up: engine revs but the car stays still
+
+Rolling resistance now acts as a force opposing chassis motion, instead of continuously applying WheelCollider brake torque. At rest it applies no force; at very low speed it is capped so it cannot reverse the car. Wheel brakes are reserved for the service pedal and parking/handbrake. Manual gear selection and the existing clutch model are unchanged.
+
+The driving HUD now shows grounded wheel count, both front wheel RPMs, representative front/rear brake torques, and throttle/brake input. Check **F2 → Shift → hold W**: expect contact **4/4**, throttle **100%**, brake **0%**, brake torque **0 / 0**, and rising wheel RPM/speed. Repeat after stopping with S and releasing it. Unity runtime verification is still required; the included tests cover brake release during launch and rolling resistance direction/limits.
+
 ### Driving and world-text fix
 
 - Configure chassis mass before creating WheelColliders, then recalculate suspension loads after the final center-of-mass setup.
