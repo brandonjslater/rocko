@@ -181,7 +181,8 @@ namespace Rocko
             if (Shifting || Gear == 0) ClutchEngagement = 0;
             float ratio = spec.Ratio(Gear);
             float shaftOmega = (wheels[0].rpm + wheels[1].rpm) * 0.5f * ratio * Mathf.PI / 30f;
-            float transmitted = DriveMath.ClutchTorque(omega, shaftOmega, netTorque, spec.engineInertia, dt, spec.clutchCapacityNm * ClutchEngagement);
+            float transmitted = DriveMath.ClutchTorque(omega, shaftOmega, netTorque, spec.engineInertia, dt,
+                spec.clutchCapacityNm * ClutchEngagement, ReflectedLoadInertia(ratio));
             omega = Mathf.Clamp(omega + (netTorque - transmitted) / spec.engineInertia * dt, 0, 10000f * Mathf.PI / 30f);
             RPM = omega * 30f / Mathf.PI;
             if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Y to restart with clutch disengaged."); }
@@ -240,6 +241,24 @@ namespace Rocko
         private float ShaftRPM()
         {
             return (wheels[0].rpm + wheels[1].rpm) * 0.5f * spec.Ratio(Gear);
+        }
+
+        //
+        // @description - Estimate the finite wheel/chassis inertia seen through the selected gear
+        // @param {float} ratio - Signed overall gear ratio
+        // @return {float} - Positive input-shaft inertia in kg m²
+        //
+        private float ReflectedLoadInertia(float ratio)
+        {
+            float radiusSquared = spec.tireRadius * spec.tireRadius;
+            float wheelInertia = 0.5f * (wheels[0].mass + wheels[1].mass) * radiusSquared;
+            // Tire grip couples chassis mass to wheel rotation. Fade that contribution
+            // during wheelspin; airborne wheels have only their rotational inertia.
+            float gripCoupling = (grounded[0] && grounded[1])
+                ? 1f / Mathf.Pow(1f + Mathf.Max(0, MaxDrivenSlip - 0.08f) * 20f, 2f) : 0f;
+            float rearInertia = 0.5f * (wheels[2].mass + wheels[3].mass) * radiusSquared;
+            float load = wheelInertia + gripCoupling * (Body.mass * radiusSquared + rearInertia);
+            return load / Mathf.Max(0.01f, ratio * ratio * spec.drivelineEfficiency);
         }
 
         //
