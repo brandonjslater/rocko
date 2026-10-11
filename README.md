@@ -1,5 +1,13 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Follow-up: synchronization in both clutch modes
+
+The clutch torque solver now accounts for both engine inertia and the finite driveline load. The earlier solver pulled engine speed toward a sampled shaft speed as though the shaft could not accelerate, while simultaneously applying torque that changed that shaft speed. This could produce repeated speed corrections in either clutch mode.
+
+The reflected load estimate includes wheel rotational inertia and chassis mass coupled through grounded tires; chassis coupling fades with tire slip. This remains an approximate coupling to Unity's separate WheelCollider solver and needs Unity runtime validation. Engine speed is still integrated from torque: the HUD lock threshold is unchanged, with no forced RPM matching or permanent lock flag.
+
+New EditMode tests check synchronization and angular momentum with multiple load inertias and changing torque. Two new PlayMode tests exercise assisted and manual launches, then require the RPM gap to stay below 80 RPM and the clutch to stay locked on **every rendered frame for two seconds**. The old smoke test only observed at least one locked tick, so passing it did not establish sustained lock. Run the new tests after updating; they have not been executed in Unity in the authoring environment.
+
 ### Follow-up: clutch remains slipping
 
 Launch assistance now blends into full clutch pressure between idle + 100 and idle + 900 engine-equivalent RPM, calculated from actual road speed. At the upper threshold, launch assistance ends. It re-arms only when both road-equivalent and gearbox RPM fall below idle + 100, so engine flare or tire slip alone cannot reopen the clutch while driving. Gear changes remain manual and the clutch pedal still overrides assistance.
