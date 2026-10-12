@@ -19,6 +19,7 @@ internal static class Program
         Recover("manual CSV 183709", 1468, 5.079, new[] {115.112,115.100,167.152,167.152}, 68.73/0.737562149);
         Shift();
         Limits();
+        PedalAndGrip();
         Console.WriteLine("PASS: shared C# drivetrain checks. Unity suspension/cornering integration is not exercised here.");
     }
 
@@ -79,14 +80,16 @@ internal static class Program
     {
         var model = Create(grip);
         double speed=0, throttle=0, pressure=0, cruise=-1, maxGap=0, brakeStart=-1, coastStart=-1;
-        double coastSpeed=0;
+        double coastSpeed=0, brakePedal=0, releasedClutch=0;
         bool launching=true, sawLock=false, sawPedalRelease=false;
         for (double time=0; time<20; time+=dt)
         {
             if (cruise < 0 && speed * direction >= 5) cruise=time;
             double sinceCruise=cruise < 0 ? -1 : time-cruise;
             double input=sinceCruise >= 2.5 ? 0 : sinceCruise >= 0 ? 0.3 : 1;
-            double brake=sinceCruise >= 4 ? 1 : 0;
+            double brakeInput=sinceCruise >= 4 ? 1 : 0;
+            brakePedal=brakeInput<brakePedal?brakeInput:Move(brakePedal,brakeInput,dt*4);
+            double brake=DrivingFeel.BrakeDemand(brakePedal);
             if (sinceCruise >= 2.5 && coastStart<0) { coastStart=time; coastSpeed=speed*direction; }
             if (sinceCruise >= 4 && brakeStart<0) brakeStart=time;
             double pedal=assist ? 0 : Math.Max(0, 1-(time-0.3));
@@ -97,7 +100,9 @@ internal static class Program
             double fuel=time<0.24 || rpm>6800 ? 0 : throttle;
             double net=Curve(rpm)*fuel-(1-fuel)*(12+rpm*0.003);
             if (rpm<1000 && fuel<0.2) net+=Math.Clamp((900-rpm)*0.6+16,0,80);
-            double engagement=time<0.24 ? 0 : 1-pedal;
+            double targetRelease=1-pedal;
+            releasedClutch=targetRelease<releasedClutch?targetRelease:Move(releasedClutch,targetRelease,dt*3);
+            double engagement=time<0.24 ? 0 : assist?1-pedal:DrivingFeel.ClutchBite(releasedClutch);
             if (assist && engagement>0)
             {
                 double roadRPM=Math.Abs(speed*Ratio)*30/(Math.PI*Radius);
@@ -213,6 +218,32 @@ internal static class Program
             }
         }
         Console.WriteLine("PASS first-to-second shift and sustained lock");
+    }
+
+    //
+    // @description - Check pedal endpoints, monotonic bite, and combined grip limits
+    // @return {Void} - Throws if pedal authority or the normalized friction budget is broken
+    //
+    private static void PedalAndGrip()
+    {
+        double previous = 0;
+        for (int i = 0; i <= 100; i++)
+        {
+            double x = i / 100.0;
+            double bite = DrivingFeel.ClutchBite(x);
+            Check(bite >= previous && bite <= 1, "Monotonic bite", false, 0, x, bite);
+            previous = bite;
+            double lateral = DrivingFeel.LateralGrip(x * 3000, 3000);
+            Check(Math.Abs(x * x + lateral * lateral - 1) < 1e-10,
+                "Combined grip budget", false, 0, x, lateral);
+        }
+        Check(DrivingFeel.ClutchBite(0) == 0 && DrivingFeel.ClutchBite(1) == 1,
+            "Clutch endpoints", false, 0, 0, 0);
+        Check(DrivingFeel.BrakeDemand(0) == 0 && DrivingFeel.BrakeDemand(1) == 1 && DrivingFeel.BrakeDemand(0.5) < 0.5,
+            "Progressive brakes retain full authority", false, 0, 0, 0);
+        Check(DrivingFeel.LateralGrip(-4000, 3000) == 0 && DrivingFeel.LateralGrip(0, 0) == 0,
+            "Grip saturation and no load", false, 0, 0, 0);
+        Console.WriteLine("PASS progressive pedals and combined grip budget");
     }
 
     //

@@ -143,6 +143,43 @@ namespace Rocko.Tests
         }
 
         //
+        // @description - Exercise progressive brake application and immediate release in the real vehicle
+        // @return {IEnumerator} - Verifies keyboard pedal steps retain full braking authority
+        //
+        [UnityTest]
+        public IEnumerator BrakePressureBuildsAndReleases()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            RockoVehicle car = Object.FindFirstObjectByType<RockoVehicle>();
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            driver.SetPaused(false);
+            car.controls.enabled = false;
+            try
+            {
+                car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
+                car.occupied = true;
+                car.controls.Throttle = car.controls.Clutch = car.controls.Steer = 0;
+                car.controls.Handbrake = false;
+                car.controls.Brake = 1;
+                yield return new WaitForFixedUpdate();
+                Assert.That(car.WheelBrakeTorque(0), Is.GreaterThan(0).And.LessThan(car.spec.frontBrakeTorque));
+                for (float t = 0; t < 0.4f; t += Time.fixedDeltaTime)
+                    yield return new WaitForFixedUpdate();
+                Assert.That(car.WheelBrakeTorque(0), Is.EqualTo(car.spec.frontBrakeTorque).Within(0.1f));
+                car.controls.Brake = 0;
+                yield return new WaitForFixedUpdate();
+                Assert.That(car.WheelBrakeTorque(0), Is.Zero);
+                Assert.That(car.WheelBrakeTorque(2), Is.Zero);
+            }
+            finally
+            {
+                driver.ResetGarage();
+                car.controls.enabled = true;
+            }
+        }
+
+        //
         // @description - Load the real scene, verify on-foot spawn, then exercise its actual launch powertrain
         // @return {IEnumerator} - Unity coroutine performing physics smoke assertions
         //

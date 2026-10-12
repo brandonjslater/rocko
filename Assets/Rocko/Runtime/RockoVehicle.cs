@@ -36,7 +36,7 @@ namespace Rocko
         public bool ClutchLocked { get { return Gear != 0 && !Shifting && ClutchEngagement > 0.95f && Mathf.Abs(RPM - ShaftRPM()) < 80f; } }
         public string Surface { get; private set; } = "Asphalt";
         public string Notice { get; private set; } = "Select 1st with Shift. W to accelerate.";
-        private float omega, throttle, steering, shiftTime, noticeTime;
+        private float omega, throttle, steering, shiftTime, noticeTime, brakePedal, releasedClutch;
         private int pendingGear;
         private bool assistingLaunch = true;
         private readonly LongitudinalDrivetrain drivetrain = new LongitudinalDrivetrain();
@@ -123,7 +123,14 @@ namespace Rocko
             if (Body == null) return;
             float dt = Time.fixedDeltaTime;
             float inputThrottle = occupied ? controls.Throttle : 0;
-            float brake = occupied ? controls.Brake : 0;
+            float brakeInput = occupied ? Mathf.Clamp01(controls.Brake) : 0;
+            // 🚗 Build pedal pressure over 0.25 seconds; releasing the pedal removes brakes immediately.
+            brakePedal = brakeInput < brakePedal ? brakeInput
+                : Mathf.MoveTowards(brakePedal, brakeInput, dt * spec.brakeApplyRate);
+            float brake = (float)DrivingFeel.BrakeDemand(brakePedal);
+            float releaseTarget = occupied ? 1 - Mathf.Clamp01(controls.Clutch) : 0;
+            releasedClutch = releaseTarget < releasedClutch ? releaseTarget
+                : Mathf.MoveTowards(releasedClutch, releaseTarget, dt * spec.manualClutchReleaseRate);
             // A parked chassis can sleep; player input must resume wheel simulation.
             if (occupied && (inputThrottle > 0.01f || brake > 0.01f ||
                 Mathf.Abs(controls.Steer) > 0.01f || Shifting)) Body.WakeUp();
@@ -150,12 +157,10 @@ namespace Rocko
                 WheelFrictionCurve forward = wheels[i].forwardFriction;
                 forward.stiffness = 0; // Longitudinal forces have exactly one owner: drivetrain. 🚗
                 wheels[i].forwardFriction = forward;
-                WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
-                lateral.stiffness = grip;
-                wheels[i].sidewaysFriction = lateral;
+
                 if (grounded[i]) rollingForce += rolling * Mathf.Max(0, contacts[i].force);
                 // 🚗 Only the brake pedal and handbrake may command wheel brakes.
-                drivetrain.BrakeTorque[i] = brake * (i < 2 ? 900f : 520f);
+                drivetrain.BrakeTorque[i] = brake * (i < 2 ? spec.frontBrakeTorque : spec.rearBrakeTorque);
                 if (i >= 2 && (!occupied || controls.Handbrake)) drivetrain.BrakeTorque[i] += 1600f;
                 // With zero actuation PhysX can pin the chassis even at zero forward stiffness.
                 // Keep all native wheels out of that mode; the shared solver owns drive/brakes.
@@ -183,7 +188,8 @@ namespace Rocko
             if (EngineRunning && RPM < spec.idleRPM + 100 && fuel < 0.2f)
                 netTorque += Mathf.Clamp((spec.idleRPM - RPM) * 0.6f + 16f, 0, 80f);
             CrankTorqueNm = netTorque;
-            float engagement = Gear == 0 || Shifting || !occupied ? 0 : 1 - controls.Clutch;
+            float engagement = Gear == 0 || Shifting || !occupied ? 0
+                : clutchAssist ? 1 - controls.Clutch : (float)DrivingFeel.ClutchBite(releasedClutch);
             if (clutchAssist && engagement > 0)
             {
                 float shaft = ShaftRPM();
@@ -214,6 +220,13 @@ namespace Rocko
             MaxDrivenSlip = Mathf.Max(Mathf.Abs((float)drivetrain.Slip[0]), Mathf.Abs((float)drivetrain.Slip[1]));
             for (int i = 0; i < 4; i++)
             {
+                // Longitudinal force gets priority; cornering capacity uses the remaining budget.
+                // This is an approximation across the separate PhysX lateral step, not a full combined tire solver.
+                WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
+                double peakForce = drivetrain.NormalLoad[i] * drivetrain.Grip[i] * 1.03;
+                lateral.stiffness = (float)(drivetrain.Grip[i] * DrivingFeel.LateralGrip(
+                    drivetrain.ForceImpulse[i] / dt, peakForce));
+                wheels[i].sidewaysFriction = lateral;
                 if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);
                 wheelAngles[i] = Mathf.Repeat(wheelAngles[i] + WheelRPM(i) * 6f * dt, 360f);
             }
@@ -322,7 +335,7 @@ namespace Rocko
             assistingLaunch = true;
             drivetrain.Reset(spec.idleRPM);
             System.Array.Clear(wheelAngles, 0, wheelAngles.Length);
-            shiftTime = throttle = steering = ClutchEngagement = 0;
+            shiftTime = throttle = steering = brakePedal = releasedClutch = ClutchEngagement = 0;
             AxleTorqueNm = WheelHP = LongitudinalG = LateralG = 0;
             previousVelocity = Vector3.zero;
             omega = spec.idleRPM * Mathf.PI / 30f;

@@ -26,6 +26,11 @@ namespace Rocko
         public float redlineRPM = 6800f;
         public float engineInertia = 0.28f;
         public float clutchCapacityNm = 260f;
+        [Header("Provisional pedal feel calibration")]
+        [Min(0.1f)] public float brakeApplyRate = 4f;
+        [Min(0.1f)] public float manualClutchReleaseRate = 3f;
+        [Min(0f)] public float frontBrakeTorque = 900f;
+        [Min(0f)] public float rearBrakeTorque = 520f;
         public float frontSpring = 26000f;
         public float rearSpring = 21000f;
         public float damper = 2700f;

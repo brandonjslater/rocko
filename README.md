@@ -1,5 +1,13 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Driving-feel tuning branch
+
+This pass preserves engine power, gearing, the shared drivetrain, and the native wheel keep-alive fix. Full brake torque is unchanged, but pedal pressure builds over 0.25 seconds with a progressive response curve. Release is immediate. Manual clutch release now moves through a smooth bite curve; depressing the clutch still removes the requested capacity immediately, subject to the existing fast pressure decay. Assist retains its tested launch controller.
+
+Cornering grip now decreases as each tire uses longitudinal grip under acceleration or braking. This is a longitudinal-priority friction-budget approximation: PhysX still computes lateral force and suspension separately. It needs road testing for understeer, braking in corners, and recovery after lifting off. It is not yet a calibrated combined-slip tire model.
+
+Run all PlayMode tests, including `BrakePressureBuildsAndReleases`, then compare a gentle launch, a full-throttle launch, partial brake input on a controller, and the same bend coasting versus accelerating. Settings are provisional; brake rise rate, manual clutch release rate, and axle brake torques are exposed on the runtime vehicle specification. No measured stopping-distance or handling claims are made by the standalone checks.
+
 ### Experimental shared drivetrain solver
 
 The October 11 traces exposed feedback oscillation between independently integrated engine and WheelCollider speeds. Engine, clutch, wheel rotation, braking, and longitudinal tire forces now advance together in `LongitudinalDrivetrain.cs`. Clutch impulses are limited by friction capacity and act on both rotating sides in the same substep. The failed static-coupling controller and estimated chassis inertia correction have been removed.
