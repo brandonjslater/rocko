@@ -68,46 +68,6 @@ namespace Rocko.Tests
         }
 
         //
-        // @description - Check clutch limits and synchronization while both engine and load accelerate
-        // @return {Void} - NUnit clutch integration assertions
-        //
-        [Test]
-        public void ClutchRespectsCapacityAndSynchronizesBothInertias()
-        {
-            Assert.That(DriveMath.ClutchTorque(200, 0, 160, 0.28f, 0.01f, 0, 1), Is.Zero);
-            Assert.That(DriveMath.ClutchTorque(200, 0, 160, 0.28f, 0.01f, 120, 1), Is.EqualTo(120));
-            Assert.That(DriveMath.ClutchTorque(100, 200, 0, 0.28f, 0.01f, 120, 1), Is.EqualTo(-120));
-            float torque = DriveMath.ClutchTorque(200, 199, 100, 0.28f, 0.01f, 260, 1);
-            float engineNext = 200 + (100 - torque) / 0.28f * 0.01f;
-            float shaftNext = 199 + torque * 0.01f;
-            Assert.That(engineNext, Is.EqualTo(shaftNext).Within(0.0001));
-        }
-
-        //
-        // @description - Require sustained synchronization for light wheels and a heavier grounded driveline
-        // @param {float} load - Reflected driveline inertia in kg m²
-        // @return {Void} - Checks speed agreement and angular momentum over changing engine torque
-        //
-        [TestCase(0.01f)]
-        [TestCase(0.6f)]
-        [TestCase(5f)]
-        public void CoupledClutchStaysSynchronizedUnderChangingTorque(float load)
-        {
-            float engine = 200, shaft = 200;
-            for (int step = 0; step < 500; step++)
-            {
-                float net = step < 200 ? 160 : step < 350 ? -30 : 80;
-                float momentumBefore = engine * 0.28f + shaft * load;
-                float torque = DriveMath.ClutchTorque(engine, shaft, net, 0.28f, 0.01f, 260, load);
-                engine += (net - torque) / 0.28f * 0.01f;
-                shaft += torque / load * 0.01f;
-                Assert.That(engine, Is.EqualTo(shaft).Within(0.001f));
-                Assert.That(engine * 0.28f + shaft * load,
-                    Is.EqualTo(momentumBefore + net * 0.01f).Within(0.005f));
-            }
-        }
-
-        //
         // @description - Reject moving reverse selection and dangerous over-rev downshifts
         // @return {Void} - NUnit gear-selection assertions
         //

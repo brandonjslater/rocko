@@ -112,3 +112,8 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Standalone shared-solver regression runner
+!Tools/DrivetrainChecks/DrivetrainChecks.csproj
+/Tools/DrivetrainChecks/bin/
+/Tools/DrivetrainChecks/obj/

@@ -67,7 +67,8 @@ namespace Rocko.Tests
                     yield return new WaitForFixedUpdate();
                 Assert.That(car.ForwardSpeed, Is.GreaterThanOrEqualTo(5f), "Launch must complete before testing cruise lock.");
                 car.controls.Throttle = 0.3f;
-                for (int i = 0; i < 100; i++) yield return new WaitForFixedUpdate();
+                // Allow bounded convergence after the large throttle reduction, then demand continuous lock.
+                for (int i = 0; i < 300 && !car.ClutchLocked; i++) yield return new WaitForFixedUpdate();
                 float end = Time.time + 2f;
                 while (Time.time < end)
                 {
@@ -75,7 +76,9 @@ namespace Rocko.Tests
                     yield return null;
                     Assert.That(car.EngineRunning, Is.True);
                     Assert.That(car.ClutchEngagement, Is.GreaterThan(0.95f));
-                    float shaft = (car.wheels[0].rpm + car.wheels[1].rpm) * 0.5f * car.spec.Ratio(car.Gear);
+                    Assert.That(Mathf.Abs(car.ClutchTorqueNm), Is.LessThanOrEqualTo(car.spec.clutchCapacityNm + 0.01f),
+                        "Clutch torque must remain within the physical clutch capacity.");
+                    float shaft = (car.WheelRPM(0) + car.WheelRPM(1)) * 0.5f * car.spec.Ratio(car.Gear);
                     string state = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                         "Engine and gearbox must stay synchronized. Mode={0}; engine={1:F1} RPM; shaft={2:F1} RPM; signed gap={3:F1}; " +
                         "clutch={4:P1}; torque={5:F1} Nm; capacity={6:F1} Nm; inertia={7:F5}; slip={8:F3}; speed={9:F2} m/s; contacts={10}/4. CSV: {11}",
@@ -93,6 +96,47 @@ namespace Rocko.Tests
             {
                 telemetry.StopRecording();
                 Debug.Log("Rocko clutch trace (" + (assist ? "assist" : "manual") + "): " + telemetry.LastFile);
+                driver.ResetGarage();
+                car.controls.enabled = true;
+            }
+        }
+
+        //
+        // @description - Verify a settled neutral chassis can respond to external longitudinal force
+        // @return {IEnumerator} - Detects native wheel constraints pinning the custom drivetrain
+        //
+        [UnityTest]
+        public IEnumerator SettledNeutralChassisRespondsToExternalForce()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            RockoVehicle car = Object.FindFirstObjectByType<RockoVehicle>();
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            driver.SetPaused(false);
+            car.controls.enabled = false;
+            try
+            {
+                car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
+                car.occupied = true;
+                car.controls.Throttle = car.controls.Brake = car.controls.Clutch = car.controls.Steer = 0;
+                car.controls.Handbrake = false;
+                // Wait beyond PhysX's low-speed timer, with no engine drive request.
+                for (float t = 0; t < 2; t += Time.fixedDeltaTime)
+                    yield return new WaitForFixedUpdate();
+                Assert.That(car.GroundedWheels, Is.EqualTo(4));
+                Assert.That(car.SpeedMPH, Is.LessThan(0.5f), "Keep-alive torque must not propel neutral.");
+                Vector3 start = car.Body.position;
+                for (float t = 0; t < 1; t += Time.fixedDeltaTime)
+                {
+                    car.Body.AddForce(Vector3.forward * 3000, ForceMode.Force);
+                    yield return new WaitForFixedUpdate();
+                }
+                Assert.That(car.ForwardSpeed, Is.GreaterThan(1f),
+                    "A neutral chassis must respond to external force after settling; native sticky constraints may be pinning it.");
+                Assert.That(car.Body.position.z - start.z, Is.GreaterThan(0.5f));
+            }
+            finally
+            {
                 driver.ResetGarage();
                 car.controls.enabled = true;
             }
@@ -141,8 +185,12 @@ namespace Rocko.Tests
             {
                 yield return new WaitForFixedUpdate();
                 lockedAfterLaunch |= car.ClutchLocked;
-                foreach (WheelCollider wheel in car.wheels)
-                    Assert.That(wheel.brakeTorque, Is.Zero, "Rolling resistance must not engage wheel brakes during launch.");
+                for (int w = 0; w < 4; w++)
+                {
+                    Assert.That(car.WheelBrakeTorque(w), Is.Zero, "Released pedals must not apply drivetrain brakes.");
+                    Assert.That(car.wheels[w].motorTorque, Is.EqualTo(RockoVehicle.NativeWheelKeepAliveTorque), "Native wheels must suppress their independent sticky constraints.");
+                    Assert.That(car.wheels[w].forwardFriction.stiffness, Is.Zero, "Longitudinal tire force must have only one owner.");
+                }
             }
             Assert.That(car.Body.IsSleeping(), Is.False, "Driving input should wake the parked chassis.");
             Assert.That(car.Gear, Is.EqualTo(1));

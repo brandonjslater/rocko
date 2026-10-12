@@ -87,17 +87,17 @@ namespace Rocko
             {
                 writer.WriteLine(string.Format(CultureInfo.InvariantCulture,
                     "{0:F3},{1:F3},{2:F3},{3:F3},{4:F3},{5},{6:F1},{7:F3},{8:F3},{9:F2},{10:F2},{11:F2},{12:F3},{13:F3},{14},{15}," +
-                    "{16:F4},{17:F3},{18:F3},{19:F3},{20:F3},{21:F3},{22:F5},{23:F3},{24:F3},{25:F3},{26:F3},{27:F3},{28:F3},{29:F3},{30},{31},{32:F3},{33:F3},{34:F3},{35:F3},{36:F3}",
+                    "{16:F4},{17:F3},{18:F3},{19:F3},{20:F3},{21:F3},{22:F5},{23:F3},{24:F3},{25:F3},{26:F3},{27:F3},{28:F3},{29:F3},{30},{31},{32:F3},{33:F3},{34:F3},{35:F3},{36:F3},shared_longitudinal_v1",
                     Time.fixedTime, car.transform.position.x, car.transform.position.y, car.transform.position.z, speed,
                     car.Gear, car.RPM, car.LongitudinalG, car.LateralG, car.WheelHP, car.AxleTorqueNm * DriveMath.NmToLbFt,
                     car.CrankTorqueNm * DriveMath.NmToLbFt, car.ClutchEngagement, car.MaxDrivenSlip, car.Surface, car.EngineRunning,
-                    Time.fixedDeltaTime, car.SampledEngineRPM, car.SampledShaftRPM, car.wheels[0].rpm, car.wheels[1].rpm,
+                    Time.fixedDeltaTime, car.SampledEngineRPM, car.SampledShaftRPM, car.WheelRPM(0), car.WheelRPM(1),
                     car.ClutchTorqueNm, car.ReflectedInertia, car.spec.clutchCapacityNm * car.ClutchEngagement,
                     car.controls.Throttle, car.controls.Brake, car.controls.Clutch,
-                    car.wheels[0].brakeTorque, car.wheels[1].brakeTorque, car.wheels[2].brakeTorque,
+                    car.WheelBrakeTorque(0), car.WheelBrakeTorque(1), car.WheelBrakeTorque(2),
                     car.GroundedWheels, car.clutchAssist, car.ForwardSpeed,
-                    car.wheels[0].motorTorque, car.wheels[1].motorTorque,
-                    car.wheels[2].rpm, car.wheels[3].rpm));
+                    car.AxleTorqueNm * 0.5f, car.AxleTorqueNm * 0.5f,
+                    car.WheelRPM(2), car.WheelRPM(3)));
                 if (flushTime >= 1) { writer.Flush(); flushTime = 0; }
             }
             catch (IOException ex) { StopRecording(); car.SetNotice("Telemetry write failed: " + ex.Message); }
@@ -130,7 +130,7 @@ namespace Rocko
                 writer = new StreamWriter(LastFile, false);
                 writer.WriteLine("time_s,x_m,y_m,z_m,speed_mph,gear,rpm,longitudinal_g,lateral_g,wheel_hp,axle_lbft,crank_lbft,clutch_engagement,front_slip,surface,engine_running," +
                     "dt_s,engine_rpm_before_solve,shaft_rpm_before_solve,front_left_rpm,front_right_rpm,clutch_torque_nm,reflected_inertia_kgm2,clutch_capacity_nm," +
-                    "throttle,brake,clutch_pedal,brake_fl_nm,brake_fr_nm,brake_rl_nm,grounded_wheels,assist,forward_speed_ms,motor_fl_nm,motor_fr_nm,rear_left_rpm,rear_right_rpm");
+                    "throttle,brake,clutch_pedal,brake_fl_nm,brake_fr_nm,brake_rl_nm,grounded_wheels,assist,forward_speed_ms,motor_fl_nm,motor_fr_nm,rear_left_rpm,rear_right_rpm,solver_version");
                 sampleTime = flushTime = 0;
                 car.SetNotice("Recording CSV · F5 / D-pad right to stop");
                 Debug.Log("Rocko telemetry: " + LastFile);

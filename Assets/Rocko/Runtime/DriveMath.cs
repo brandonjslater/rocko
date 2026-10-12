@@ -57,27 +57,6 @@ namespace Rocko
         }
 
         //
-        // @description - Solve clutch coupling against two finite inertias, limited by friction capacity
-        // @param {float} engineOmega - Engine angular velocity in radians per second
-        // @param {float} shaftOmega - Gearbox input angular velocity in radians per second
-        // @param {float} netTorque - Net engine torque in newton meters
-        // @param {float} inertia - Engine rotational inertia in kg m²
-        // @param {float} dt - Physics step in seconds
-        // @param {float} capacity - Available clutch torque in newton meters
-        // @param {float} loadInertia - Gearbox load inertia reflected to the crank in kg m²
-        // @return {float} - Signed torque transmitted into the gearbox
-        //
-        public static float ClutchTorque(float engineOmega, float shaftOmega, float netTorque, float inertia, float dt, float capacity, float loadInertia)
-        {
-            float engine = Mathf.Max(0.0001f, inertia);
-            float load = Mathf.Max(0.0001f, loadInertia);
-            float reducedInertia = engine * load / (engine + load);
-            float torque = netTorque * load / (engine + load)
-                + (engineOmega - shaftOmega) * reducedInertia / Mathf.Max(0.0001f, dt);
-            return Mathf.Clamp(torque, -Mathf.Max(0, capacity), Mathf.Max(0, capacity));
-        }
-
-        //
         // @description - Reject unsafe reverse selection and mechanical over-rev downshifts
         // @param {int} target - Requested gear
         // @param {float} speed - Vehicle speed magnitude in meters per second
