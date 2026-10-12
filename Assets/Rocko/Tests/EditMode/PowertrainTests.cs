@@ -6,64 +6,6 @@ namespace Rocko.Tests
     public sealed class PowertrainTests
     {
         //
-        // @description - Capture synchronized shafts and account for flywheel acceleration while locked
-        // @return {Void} - Verifies static torque balance and sustained coupling under changing engine torque
-        //
-        [Test]
-        public void StaticClutchAccountsForEngineInertia()
-        {
-            ClutchCoupling clutch = new ClutchCoupling();
-            Assert.That(clutch.Step(200, 200, 100, 0.28f, 0.01f, 260, true), Is.EqualTo(100));
-            Assert.That(clutch.Locked, Is.True);
-            float torque = 0;
-            for (int i = 1; i <= 100; i++)
-            {
-                torque = clutch.Step(200 + i * 0.1f, 200 + i * 0.1f, 100, 0.28f, 0.01f, 260, true);
-                Assert.That(clutch.Locked, Is.True);
-            }
-            Assert.That(torque, Is.EqualTo(100 - 0.28f * 10).Within(0.01f));
-        }
-
-        //
-        // @description - Ensure a clutch cannot remain locked beyond torque capacity or with the pedal down
-        // @return {Void} - Verifies overload, pedal release, gear/reset release, and large-slip rejection
-        //
-        [Test]
-        public void StaticClutchReleasesForOverloadAndPedal()
-        {
-            ClutchCoupling clutch = new ClutchCoupling();
-            clutch.Step(200, 200, 100, 0.28f, 0.01f, 260, true);
-            clutch.Step(200, 200, 400, 0.28f, 0.01f, 260, true);
-            Assert.That(clutch.Locked, Is.False);
-            Assert.That(Mathf.Abs(clutch.Torque), Is.LessThanOrEqualTo(260));
-            clutch.Step(200, 200, 100, 0.28f, 0.01f, 260, true);
-            Assert.That(clutch.Locked, Is.True);
-            Assert.That(clutch.Step(200, 200, 100, 0.28f, 0.01f, 0, false), Is.Zero);
-            Assert.That(clutch.Locked, Is.False);
-            clutch.Reset();
-            clutch.Step(500, 200, 100, 0.28f, 0.01f, 260, true);
-            Assert.That(clutch.Locked, Is.False, "Full pressure alone cannot assert lock with a large RPM gap.");
-        }
-
-        //
-        // @description - Prevent the recorded full-capacity torque reversal while slipping
-        // @return {Void} - Verifies bounded torque and passive sliding friction across speed reversals
-        //
-        [Test]
-        public void SlidingClutchDoesNotAlternateFullCapacity()
-        {
-            ClutchCoupling clutch = new ClutchCoupling();
-            for (int i = 0; i < 100; i++)
-            {
-                float shaft = i % 2 == 0 ? 200 : 600;
-                float torque = clutch.Step(400, shaft, 30, 0.28f, 0.01f, 260, true);
-                Assert.That(Mathf.Abs(torque), Is.LessThanOrEqualTo(8.001f));
-                Assert.That(torque * (400 - shaft), Is.GreaterThanOrEqualTo(0), "Sliding friction cannot add relative kinetic energy.");
-                Assert.That(clutch.Locked, Is.False);
-            }
-        }
-
-        //
         // @description - Verify launch pressure completes engagement despite engine flare or tire slip
         // @return {Void} - NUnit assertions for standstill, transition, and completed launches
         //
@@ -123,46 +65,6 @@ namespace Rocko.Tests
             Assert.That(DriveMath.Horsepower(-165, -4600), Is.EqualTo(DriveMath.Horsepower(165, 4600)).Within(0.001));
             Assert.That(DriveMath.Horsepower(165, 0), Is.Zero);
             Assert.That(165 * DriveMath.NmToLbFt, Is.EqualTo(121.69775).Within(0.001));
-        }
-
-        //
-        // @description - Check clutch limits and synchronization while both engine and load accelerate
-        // @return {Void} - NUnit clutch integration assertions
-        //
-        [Test]
-        public void ClutchRespectsCapacityAndSynchronizesBothInertias()
-        {
-            Assert.That(DriveMath.ClutchTorque(200, 0, 160, 0.28f, 0.01f, 0, 1), Is.Zero);
-            Assert.That(DriveMath.ClutchTorque(200, 0, 160, 0.28f, 0.01f, 120, 1), Is.EqualTo(120));
-            Assert.That(DriveMath.ClutchTorque(100, 200, 0, 0.28f, 0.01f, 120, 1), Is.EqualTo(-120));
-            float torque = DriveMath.ClutchTorque(200, 199, 100, 0.28f, 0.01f, 260, 1);
-            float engineNext = 200 + (100 - torque) / 0.28f * 0.01f;
-            float shaftNext = 199 + torque * 0.01f;
-            Assert.That(engineNext, Is.EqualTo(shaftNext).Within(0.0001));
-        }
-
-        //
-        // @description - Require sustained synchronization for light wheels and a heavier grounded driveline
-        // @param {float} load - Reflected driveline inertia in kg m²
-        // @return {Void} - Checks speed agreement and angular momentum over changing engine torque
-        //
-        [TestCase(0.01f)]
-        [TestCase(0.6f)]
-        [TestCase(5f)]
-        public void CoupledClutchStaysSynchronizedUnderChangingTorque(float load)
-        {
-            float engine = 200, shaft = 200;
-            for (int step = 0; step < 500; step++)
-            {
-                float net = step < 200 ? 160 : step < 350 ? -30 : 80;
-                float momentumBefore = engine * 0.28f + shaft * load;
-                float torque = DriveMath.ClutchTorque(engine, shaft, net, 0.28f, 0.01f, 260, load);
-                engine += (net - torque) / 0.28f * 0.01f;
-                shaft += torque / load * 0.01f;
-                Assert.That(engine, Is.EqualTo(shaft).Within(0.001f));
-                Assert.That(engine * 0.28f + shaft * load,
-                    Is.EqualTo(momentumBefore + net * 0.01f).Within(0.005f));
-            }
         }
 
         //

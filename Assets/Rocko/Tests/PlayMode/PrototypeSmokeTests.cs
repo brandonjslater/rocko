@@ -77,8 +77,8 @@ namespace Rocko.Tests
                     Assert.That(car.EngineRunning, Is.True);
                     Assert.That(car.ClutchEngagement, Is.GreaterThan(0.95f));
                     Assert.That(Mathf.Abs(car.ClutchTorqueNm), Is.LessThanOrEqualTo(car.spec.clutchCapacityNm + 0.01f),
-                        "Static coupling must remain within the physical clutch capacity.");
-                    float shaft = (car.wheels[0].rpm + car.wheels[1].rpm) * 0.5f * car.spec.Ratio(car.Gear);
+                        "Clutch torque must remain within the physical clutch capacity.");
+                    float shaft = (car.WheelRPM(0) + car.WheelRPM(1)) * 0.5f * car.spec.Ratio(car.Gear);
                     string state = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                         "Engine and gearbox must stay synchronized. Mode={0}; engine={1:F1} RPM; shaft={2:F1} RPM; signed gap={3:F1}; " +
                         "clutch={4:P1}; torque={5:F1} Nm; capacity={6:F1} Nm; inertia={7:F5}; slip={8:F3}; speed={9:F2} m/s; contacts={10}/4. CSV: {11}",
@@ -144,8 +144,12 @@ namespace Rocko.Tests
             {
                 yield return new WaitForFixedUpdate();
                 lockedAfterLaunch |= car.ClutchLocked;
-                foreach (WheelCollider wheel in car.wheels)
-                    Assert.That(wheel.brakeTorque, Is.Zero, "Rolling resistance must not engage wheel brakes during launch.");
+                for (int w = 0; w < 4; w++)
+                {
+                    Assert.That(car.WheelBrakeTorque(w), Is.Zero, "Released pedals must not apply drivetrain brakes.");
+                    Assert.That(car.wheels[w].motorTorque, Is.Zero, "PhysX must not duplicate longitudinal drive torque.");
+                    Assert.That(car.wheels[w].forwardFriction.stiffness, Is.Zero, "Longitudinal tire force must have only one owner.");
+                }
             }
             Assert.That(car.Body.IsSleeping(), Is.False, "Driving input should wake the parked chassis.");
             Assert.That(car.Gear, Is.EqualTo(1));

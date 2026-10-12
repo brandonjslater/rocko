@@ -1,49 +1,20 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
-### CSV-confirmed clutch oscillation and static coupling
+### Experimental shared drivetrain solver
 
-The October 11 runtime traces show repeated +260/-260 Nm clutch commands and multi-thousand-RPM shaft changes across 10 ms steps. The estimated-inertia solver did not represent WheelCollider's contact response accurately enough to synchronize the two separately integrated speeds.
+The October 11 traces exposed feedback oscillation between independently integrated engine and WheelCollider speeds. Engine, clutch, wheel rotation, braking, and longitudinal tire forces now advance together in `LongitudinalDrivetrain.cs`. Clutch impulses are limited by friction capacity and act on both rotating sides in the same substep. The failed static-coupling controller and estimated chassis inertia correction have been removed.
 
-Runtime coupling now has sliding and static modes. Sliding torque uses a 0.35-second speed correction and an 800 Nm/s command slew limit, constrained to friction capacity and to oppose relative motion. Static coupling may start only within 40 RPM, with full clutch pressure and enough torque capacity. While static coupling holds, engine and input shaft are one speed; transmitted torque subtracts the flywheel acceleration demand from engine torque. Shaft acceleration is filtered over 80 ms because the external WheelCollider solver remains discrete. Torque overload, pedal release, shifts, and resets release coupling. This is a changed physical model, not just a changed HUD label; its interaction with Unity still requires PlayMode verification.
+WheelColliders retain suspension and lateral friction. Their motor torque, brake torque, and longitudinal friction are disabled to avoid applying drive forces twice. Wheel visuals, HUD, and telemetry use the shared solver's wheel speeds. Combined cornering grip and suspension interaction still require Unity testing; the inner solver predicts chassis translation, while Unity applies contact forces and their rotational effects once per outer physics step.
 
-The older finite-inertia helper and its mathematical tests remain as reference; the vehicle no longer calls it. `reflected_inertia_kgm2` is diagnostic only. Tests now allow at most three seconds to synchronize after the launch-to-cruise throttle change, followed by the unchanged two seconds of continuous lock below 80 RPM. Additional tests exercise static torque balance, capacity release, pedal release, and reversal behavior. Automatic CSV recording remains enabled in the two cruise tests.
+The actual C# solver compiled and passed headless assisted/manual launch and sustained-lock checks at 5, 10, and 20 ms steps, plus reverse, reduced grip, braking, shifting, open-clutch, neutral, airborne, and recovery checks seeded from the two failing traces. Run these independently with `.NET 8`:
 
-### Clutch investigation: automatic runtime traces
+```
+dotnet run --project Tools/DrivetrainChecks/DrivetrainChecks.csproj
+```
 
-Both sustained-lock PlayMode tests now record a CSV on every physics step, starting before launch and flushing on success or failure. The Console prints `Rocko clutch trace (assist/manual):` followed by the saved file path. RPM-gap assertion messages also include that path and a signed engine/shaft comparison, clutch pressure, transmitted torque, capacity, estimated inertia, tire slip, speed, and wheel contact count.
+The headless fixture uses flat-road loads and does not run Unity. Run all EditMode and PlayMode tests in the Editor, especially both `ClutchHoldsLockDuringCruise` tests and `RealSceneSpawnsOutsideAndLaunchesWithFiniteState`. The cruise tests retain the 80 RPM limit for two continuous seconds; their automatic CSV traces remain enabled.
 
-These changes gather evidence; they do not change clutch physics or relax the 80 RPM test threshold. The CSV's `engine_rpm_before_solve` and `shaft_rpm_before_solve` are sampled together before integration. `rpm` is the resulting engine speed; wheel RPM columns are still the wheel state before the upcoming PhysX step. Compare the next row's shaft speed to see PhysX's response. F5 recordings retain the usual 20 Hz rate, with the additional diagnostic columns.
-
-Run `AssistedClutchHoldsLockDuringCruise` and `ManualClutchHoldsLockDuringCruise`, then attach the two CSVs identified in the Console. They contain simulation values only, with no account or machine identifiers in their rows.
-
-### Follow-up: synchronization in both clutch modes
-
-The clutch torque solver now accounts for both engine inertia and the finite driveline load. The earlier solver pulled engine speed toward a sampled shaft speed as though the shaft could not accelerate, while simultaneously applying torque that changed that shaft speed. This could produce repeated speed corrections in either clutch mode.
-
-The reflected load estimate includes wheel rotational inertia and chassis mass coupled through grounded tires; chassis coupling fades with tire slip. This remains an approximate coupling to Unity's separate WheelCollider solver and needs Unity runtime validation. Engine speed is still integrated from torque: the HUD lock threshold is unchanged, with no forced RPM matching or permanent lock flag.
-
-New EditMode tests check synchronization and angular momentum with multiple load inertias and changing torque. Two new PlayMode tests exercise assisted and manual launches, then require the RPM gap to stay below 80 RPM and the clutch to stay locked on **every rendered frame for two seconds**. The old smoke test only observed at least one locked tick, so passing it did not establish sustained lock. Run the new tests after updating; they have not been executed in Unity in the authoring environment.
-
-### Follow-up: clutch remains slipping
-
-Launch assistance now blends into full clutch pressure between idle + 100 and idle + 900 engine-equivalent RPM, calculated from actual road speed. At the upper threshold, launch assistance ends. It re-arms only when both road-equivalent and gearbox RPM fall below idle + 100, so engine flare or tire slip alone cannot reopen the clutch while driving. Gear changes remain manual and the clutch pedal still overrides assistance.
-
-The diagnostics panel includes clutch engagement percentage and engine/gearbox RPM difference. During **F2 → Shift → hold W**, expect initial launch slip, then **100%** clutch pressure and a small RPM gap. Full pressure does not by itself prove synchronization. The Unity smoke test now requires actual clutch lock during launch and sustained full pressure afterward. Unity execution is still pending in the authoring environment.
-
-### Follow-up: engine revs but the car stays still
-
-Rolling resistance now acts as a force opposing chassis motion, instead of continuously applying WheelCollider brake torque. At rest it applies no force; at very low speed it is capped so it cannot reverse the car. Wheel brakes are reserved for the service pedal and parking/handbrake. Manual gear selection and the existing clutch model are unchanged.
-
-The driving HUD now shows grounded wheel count, both front wheel RPMs, representative front/rear brake torques, and throttle/brake input. Check **F2 → Shift → hold W**: expect contact **4/4**, throttle **100%**, brake **0%**, brake torque **0 / 0**, and rising wheel RPM/speed. Repeat after stopping with S and releasing it. Unity runtime verification is still required; the included tests cover brake release during launch and rolling resistance direction/limits.
-
-### Driving and world-text fix
-
-- Configure chassis mass before creating WheelColliders, then recalculate suspension loads after the final center-of-mass setup.
-- Wake a sleeping parked car when driving or shifting input arrives.
-- Render world labels with depth testing and fog, before the windscreen glass. Buildings, the car body, and sign boards now occlude these labels; the HUD remains a screen overlay.
-- Keep the neutral/first-gear instruction visible after the temporary reset notice expires.
-
-Quick check: open **Rocko → Open Prototype Scene**, press Play, then **F2 → Shift → W**. F2 seats you at the straight; Shift selects first gear; W accelerates. Inspect road signs from inside the garage and behind sign boards to check occlusion. Run the PlayMode smoke test for tire contact, supported mass, launch from a sleeping chassis, and braking. These changes have not been run in Unity in the authoring environment.
+CSV `solver_version` now identifies `shared_longitudinal_v1`. Engine `rpm` and all wheel RPM columns are sampled after the same shared solve; `engine_rpm_before_solve` and `shaft_rpm_before_solve` are sampled together before it. Chassis speed is sampled before the upcoming Unity physics step. `reflected_inertia_kgm2` now reports driven-wheel rotational inertia only and is diagnostic, not a solver input. Motor columns report shared-solver axle torque divided between the driven wheels.
 
 A first-person Scirocco II sandbox focused on developing the driving model before adding car building or survival systems.
 

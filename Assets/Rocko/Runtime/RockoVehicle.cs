@@ -13,7 +13,7 @@ namespace Rocko
         public bool occupied, clutchAssist = true;
         public Rigidbody Body { get; private set; }
         public int Gear { get; private set; }
-        public float RPM { get { return coupling.Locked ? Mathf.Max(0, ShaftRPM()) : omega * 30f / Mathf.PI; } }
+        public float RPM { get { return omega * 30f / Mathf.PI; } }
         public float WheelHP { get; private set; }
         public float AxleTorqueNm { get; private set; }
         public float CrankTorqueNm { get; private set; }
@@ -30,13 +30,15 @@ namespace Rocko
         public float ForwardSpeed { get { return Vector3.Dot(Body.linearVelocity, transform.forward); } }
         public bool EngineRunning { get; private set; }
         public bool Shifting { get { return shiftTime > 0; } }
-        public bool ClutchLocked { get { return coupling.Locked; } }
+        public bool ClutchLocked { get { return Gear != 0 && !Shifting && ClutchEngagement > 0.95f && Mathf.Abs(RPM - ShaftRPM()) < 80f; } }
         public string Surface { get; private set; } = "Asphalt";
         public string Notice { get; private set; } = "Select 1st with Shift. W to accelerate.";
         private float omega, throttle, steering, shiftTime, noticeTime;
         private int pendingGear;
         private bool assistingLaunch = true;
-        private readonly ClutchCoupling coupling = new ClutchCoupling();
+        private readonly LongitudinalDrivetrain drivetrain = new LongitudinalDrivetrain();
+        private readonly Vector3[] tireDirections = new Vector3[4];
+        private readonly float[] wheelAngles = new float[4];
         private Vector3 previousVelocity;
         private readonly bool[] grounded = new bool[4];
         private readonly WheelHit[] contacts = new WheelHit[4];
@@ -77,14 +79,14 @@ namespace Rocko
                 if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / X to shift")); }
                 if (controls.Restart && !EngineRunning)
                 {
-                    if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { coupling.Reset(); EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; }
+                    if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; drivetrain.EngineOmega = omega; }
                     else SetNotice("Depress clutch or select neutral to start.");
                 }
             }
             for (int i = 0; i < wheels.Length; i++)
             {
                 wheels[i].GetWorldPose(out Vector3 p, out Quaternion q);
-                wheelVisuals[i].SetPositionAndRotation(p, q);
+                wheelVisuals[i].SetPositionAndRotation(p, transform.rotation * Quaternion.Euler(0, wheels[i].steerAngle, 0) * Quaternion.Euler(wheelAngles[i], 0, 0));
             }
             if (steeringWheel != null) steeringWheel.localRotation = Quaternion.Euler(22, 0, -steering * 380f);
             if (noticeTime > 0) noticeTime -= Time.deltaTime;
@@ -100,14 +102,12 @@ namespace Rocko
         {
             if (Shifting) return;
             int target = Gear + direction;
-            float wheelRPM = (wheels[0].rpm + wheels[1].rpm) * 0.5f;
+            float wheelRPM = (WheelRPM(0) + WheelRPM(1)) * 0.5f;
             if (!DriveMath.CanSelect(target, Body.linearVelocity.magnitude, wheelRPM, spec) || (target > 0 && ForwardSpeed < -0.5f))
             { SetNotice("Shift blocked: speed, RPM, or gear limit."); return; }
             if (!clutchAssist && controls.Clutch < 0.8f && target != 0)
             { SetNotice("Hold C / X to disengage the clutch first."); return; }
             pendingGear = target;
-            if (coupling.Locked) omega = Mathf.Max(0, ShaftRPM()) * Mathf.PI / 30f;
-            coupling.Reset();
             shiftTime = 0.24f;
         }
 
@@ -131,7 +131,7 @@ namespace Rocko
                 shiftTime -= dt;
                 if (shiftTime <= 0) Gear = pendingGear;
             }
-            MaxDrivenSlip = 0;
+            ApplySteering();
             int groundCount = 0;
             float rollingForce = 0;
             for (int i = 0; i < 4; i++)
@@ -143,18 +143,25 @@ namespace Rocko
                     groundCount++;
                     RoadSurface surface = contacts[i].collider.GetComponent<RoadSurface>();
                     if (surface != null) { grip = surface.grip; rolling = surface.rollingResistance; Surface = surface.label; }
-                    if (i < 2) MaxDrivenSlip = Mathf.Max(MaxDrivenSlip, Mathf.Abs(contacts[i].forwardSlip));
                 }
                 WheelFrictionCurve forward = wheels[i].forwardFriction;
-                forward.stiffness = grip;
+                forward.stiffness = 0; // Longitudinal forces have exactly one owner: drivetrain. 🚗
                 wheels[i].forwardFriction = forward;
                 WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
                 lateral.stiffness = grip;
                 wheels[i].sidewaysFriction = lateral;
                 if (grounded[i]) rollingForce += rolling * Mathf.Max(0, contacts[i].force);
                 // 🚗 Only the brake pedal and handbrake may command wheel brakes.
-                wheels[i].brakeTorque = brake * (i < 2 ? 900f : 520f);
-                if (i >= 2 && (!occupied || controls.Handbrake)) wheels[i].brakeTorque += 1600f;
+                drivetrain.BrakeTorque[i] = brake * (i < 2 ? 900f : 520f);
+                if (i >= 2 && (!occupied || controls.Handbrake)) drivetrain.BrakeTorque[i] += 1600f;
+                wheels[i].motorTorque = wheels[i].brakeTorque = 0;
+                drivetrain.NormalLoad[i] = grounded[i] ? Mathf.Max(0, contacts[i].force) : 0;
+                drivetrain.Grip[i] = grip;
+                drivetrain.WheelInertia[i] = 0.5f * wheels[i].mass * spec.tireRadius * spec.tireRadius;
+                tireDirections[i] = grounded[i] ? contacts[i].forwardDir.normalized
+                    : transform.TransformDirection(Quaternion.Euler(0, wheels[i].steerAngle, 0) * Vector3.forward);
+                Vector3 contact = grounded[i] ? contacts[i].point : wheels[i].transform.position;
+                drivetrain.ContactSpeed[i] = Vector3.Dot(Body.GetPointVelocity(contact), tireDirections[i]);
             }
             if (groundCount == 0) Surface = "Airborne";
             GroundedWheels = groundCount;
@@ -162,8 +169,6 @@ namespace Rocko
             float resistance = DriveMath.RollingResistance(ForwardSpeed, rollingForce, Body.mass, dt);
             Body.AddForce(transform.forward * resistance);
 
-            // A locked clutch is one rotational degree of freedom, not two independent integrators.
-            if (coupling.Locked) omega = Mathf.Max(0, ShaftRPM()) * Mathf.PI / 30f;
             float fuel = Shifting ? 0 : throttle;
             if (RPM > spec.redlineRPM) fuel = 0;
             float netTorque = EngineRunning ? spec.torqueCurve.Evaluate(RPM) * fuel : 0;
@@ -188,23 +193,27 @@ namespace Rocko
             ClutchEngagement = Mathf.MoveTowards(ClutchEngagement, engagement, dt * (engagement < ClutchEngagement ? 20 : 3));
             if (Shifting || Gear == 0) ClutchEngagement = 0;
             float ratio = spec.Ratio(Gear);
-            float shaftOmega = (wheels[0].rpm + wheels[1].rpm) * 0.5f * ratio * Mathf.PI / 30f;
+            float shaftOmega = (WheelRPM(0) + WheelRPM(1)) * 0.5f * ratio * Mathf.PI / 30f;
             SampledEngineRPM = omega * 30f / Mathf.PI;
             SampledShaftRPM = shaftOmega * 30f / Mathf.PI;
             ReflectedInertia = ReflectedLoadInertia(ratio);
-            float transmitted = coupling.Step(omega, shaftOmega, netTorque, spec.engineInertia, dt,
-                spec.clutchCapacityNm * ClutchEngagement, ClutchEngagement > 0.95f && Gear != 0 && !Shifting && occupied);
-            ClutchTorqueNm = transmitted;
-            omega = coupling.Locked ? Mathf.Max(0, shaftOmega)
-                : Mathf.Clamp(omega + (netTorque - transmitted) / spec.engineInertia * dt, 0, 10000f * Mathf.PI / 30f);
+            for (int i = 0; i < 4; i++)
+                for (int j = 0; j < 4; j++)
+                    drivetrain.DirectionDot[i * 4 + j] = Vector3.Dot(tireDirections[i], tireDirections[j]);
+            drivetrain.Step(dt, netTorque, spec.engineInertia, spec.clutchCapacityNm * ClutchEngagement,
+                ratio, spec.drivelineEfficiency, Body.mass, spec.tireRadius);
+            omega = (float)drivetrain.EngineOmega;
+            ClutchTorqueNm = (float)drivetrain.ClutchTorque;
+            AxleTorqueNm = (float)drivetrain.AxleTorque;
+            MaxDrivenSlip = Mathf.Max(Mathf.Abs((float)drivetrain.Slip[0]), Mathf.Abs((float)drivetrain.Slip[1]));
+            for (int i = 0; i < 4; i++)
+            {
+                if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);
+                wheelAngles[i] = Mathf.Repeat(wheelAngles[i] + WheelRPM(i) * 6f * dt, 360f);
+            }
             if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Y to restart with clutch disengaged."); }
-            AxleTorqueNm = transmitted * ratio * (transmitted >= 0 ? spec.drivelineEfficiency : 1f / spec.drivelineEfficiency);
-            wheels[0].motorTorque = AxleTorqueNm * 0.5f;
-            wheels[1].motorTorque = AxleTorqueNm * 0.5f;
-            wheels[2].motorTorque = wheels[3].motorTorque = 0;
-            WheelHP = DriveMath.Horsepower(AxleTorqueNm, (wheels[0].rpm + wheels[1].rpm) * 0.5f);
+            WheelHP = DriveMath.Horsepower(AxleTorqueNm, (WheelRPM(0) + WheelRPM(1)) * 0.5f);
 
-            ApplySteering();
             AntiRoll(0, 1, spec.frontAntiRoll);
             AntiRoll(2, 3, spec.rearAntiRoll);
             Vector3 v = Body.linearVelocity;
@@ -252,11 +261,31 @@ namespace Rocko
         //
         private float ShaftRPM()
         {
-            return (wheels[0].rpm + wheels[1].rpm) * 0.5f * spec.Ratio(Gear);
+            return (WheelRPM(0) + WheelRPM(1)) * 0.5f * spec.Ratio(Gear);
         }
 
         //
-        // @description - Estimate the finite wheel/chassis inertia seen through the selected gear
+        // @description - Read wheel speed from the shared longitudinal solver
+        // @param {int} index - Wheel index: front left, front right, rear left, rear right
+        // @return {float} - Signed wheel revolutions per minute
+        //
+        public float WheelRPM(int index)
+        {
+            return (float)(drivetrain.WheelOmega[index] * 30 / System.Math.PI);
+        }
+
+        //
+        // @description - Read the actual brake command consumed by the shared wheel solver
+        // @param {int} index - Wheel index from zero through three
+        // @return {float} - Brake torque magnitude in Nm
+        //
+        public float WheelBrakeTorque(int index)
+        {
+            return (float)drivetrain.BrakeTorque[index];
+        }
+
+        //
+        // @description - Report driven-wheel inertia reflected through the selected gear for diagnostics
         // @param {float} ratio - Signed overall gear ratio
         // @return {float} - Positive input-shaft inertia in kg m²
         //
@@ -264,13 +293,7 @@ namespace Rocko
         {
             float radiusSquared = spec.tireRadius * spec.tireRadius;
             float wheelInertia = 0.5f * (wheels[0].mass + wheels[1].mass) * radiusSquared;
-            // Tire grip couples chassis mass to wheel rotation. Fade that contribution
-            // during wheelspin; airborne wheels have only their rotational inertia.
-            float gripCoupling = (grounded[0] && grounded[1])
-                ? 1f / Mathf.Pow(1f + Mathf.Max(0, MaxDrivenSlip - 0.08f) * 20f, 2f) : 0f;
-            float rearInertia = 0.5f * (wheels[2].mass + wheels[3].mass) * radiusSquared;
-            float load = wheelInertia + gripCoupling * (Body.mass * radiusSquared + rearInertia);
-            return load / Mathf.Max(0.01f, ratio * ratio * spec.drivelineEfficiency);
+            return wheelInertia / Mathf.Max(0.01f, ratio * ratio * spec.drivelineEfficiency);
         }
 
         //
@@ -291,7 +314,8 @@ namespace Rocko
             foreach (WheelCollider w in wheels) { w.enabled = false; w.motorTorque = 0; w.brakeTorque = 0; w.steerAngle = 0; w.enabled = true; }
             Gear = pendingGear = 0;
             assistingLaunch = true;
-            coupling.Reset();
+            drivetrain.Reset(spec.idleRPM);
+            System.Array.Clear(wheelAngles, 0, wheelAngles.Length);
             shiftTime = throttle = steering = ClutchEngagement = 0;
             AxleTorqueNm = WheelHP = LongitudinalG = LateralG = 0;
             previousVelocity = Vector3.zero;
