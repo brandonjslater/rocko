@@ -102,6 +102,47 @@ namespace Rocko.Tests
         }
 
         //
+        // @description - Verify a settled neutral chassis can respond to external longitudinal force
+        // @return {IEnumerator} - Detects native wheel constraints pinning the custom drivetrain
+        //
+        [UnityTest]
+        public IEnumerator SettledNeutralChassisRespondsToExternalForce()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            RockoVehicle car = Object.FindFirstObjectByType<RockoVehicle>();
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            driver.SetPaused(false);
+            car.controls.enabled = false;
+            try
+            {
+                car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
+                car.occupied = true;
+                car.controls.Throttle = car.controls.Brake = car.controls.Clutch = car.controls.Steer = 0;
+                car.controls.Handbrake = false;
+                // Wait beyond PhysX's low-speed timer, with no engine drive request.
+                for (float t = 0; t < 2; t += Time.fixedDeltaTime)
+                    yield return new WaitForFixedUpdate();
+                Assert.That(car.GroundedWheels, Is.EqualTo(4));
+                Assert.That(car.SpeedMPH, Is.LessThan(0.5f), "Keep-alive torque must not propel neutral.");
+                Vector3 start = car.Body.position;
+                for (float t = 0; t < 1; t += Time.fixedDeltaTime)
+                {
+                    car.Body.AddForce(Vector3.forward * 3000, ForceMode.Force);
+                    yield return new WaitForFixedUpdate();
+                }
+                Assert.That(car.ForwardSpeed, Is.GreaterThan(1f),
+                    "A neutral chassis must respond to external force after settling; native sticky constraints may be pinning it.");
+                Assert.That(car.Body.position.z - start.z, Is.GreaterThan(0.5f));
+            }
+            finally
+            {
+                driver.ResetGarage();
+                car.controls.enabled = true;
+            }
+        }
+
+        //
         // @description - Load the real scene, verify on-foot spawn, then exercise its actual launch powertrain
         // @return {IEnumerator} - Unity coroutine performing physics smoke assertions
         //
@@ -147,7 +188,7 @@ namespace Rocko.Tests
                 for (int w = 0; w < 4; w++)
                 {
                     Assert.That(car.WheelBrakeTorque(w), Is.Zero, "Released pedals must not apply drivetrain brakes.");
-                    Assert.That(car.wheels[w].motorTorque, Is.Zero, "PhysX must not duplicate longitudinal drive torque.");
+                    Assert.That(car.wheels[w].motorTorque, Is.EqualTo(RockoVehicle.NativeWheelKeepAliveTorque), "Native wheels must suppress their independent sticky constraints.");
                     Assert.That(car.wheels[w].forwardFriction.stiffness, Is.Zero, "Longitudinal tire force must have only one owner.");
                 }
             }

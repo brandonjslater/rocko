@@ -5,6 +5,9 @@ namespace Rocko
     [RequireComponent(typeof(Rigidbody))]
     public sealed class RockoVehicle : MonoBehaviour
     {
+        // 🚗 Nonzero actuation suppresses PhysX's separate low-speed sticky constraints.
+        // Forward friction stays zero, so this does not supply chassis traction.
+        public const float NativeWheelKeepAliveTorque = 0.001f;
         public VehicleSpec spec;
         public RockoInput controls;
         public WheelCollider[] wheels;
@@ -154,7 +157,10 @@ namespace Rocko
                 // 🚗 Only the brake pedal and handbrake may command wheel brakes.
                 drivetrain.BrakeTorque[i] = brake * (i < 2 ? 900f : 520f);
                 if (i >= 2 && (!occupied || controls.Handbrake)) drivetrain.BrakeTorque[i] += 1600f;
-                wheels[i].motorTorque = wheels[i].brakeTorque = 0;
+                // With zero actuation PhysX can pin the chassis even at zero forward stiffness.
+                // Keep all native wheels out of that mode; the shared solver owns drive/brakes.
+                wheels[i].motorTorque = NativeWheelKeepAliveTorque;
+                wheels[i].brakeTorque = 0;
                 drivetrain.NormalLoad[i] = grounded[i] ? Mathf.Max(0, contacts[i].force) : 0;
                 drivetrain.Grip[i] = grip;
                 drivetrain.WheelInertia[i] = 0.5f * wheels[i].mass * spec.tireRadius * spec.tireRadius;
