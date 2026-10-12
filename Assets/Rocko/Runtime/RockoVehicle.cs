@@ -79,7 +79,7 @@ namespace Rocko
             {
                 if (controls.Up) RequestShift(1);
                 if (controls.Down) RequestShift(-1);
-                if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / X to shift")); }
+                if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / Square to shift")); }
                 if (controls.Restart && !EngineRunning)
                 {
                     if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; drivetrain.EngineOmega = omega; }
@@ -109,7 +109,7 @@ namespace Rocko
             if (!DriveMath.CanSelect(target, Body.linearVelocity.magnitude, wheelRPM, spec) || (target > 0 && ForwardSpeed < -0.5f))
             { SetNotice("Shift blocked: speed, RPM, or gear limit."); return; }
             if (!clutchAssist && controls.Clutch < 0.8f && target != 0)
-            { SetNotice("Hold C / X to disengage the clutch first."); return; }
+            { SetNotice("Hold C / Square to disengage the clutch first."); return; }
             pendingGear = target;
             shiftTime = 0.24f;
         }
@@ -230,7 +230,7 @@ namespace Rocko
                 if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);
                 wheelAngles[i] = Mathf.Repeat(wheelAngles[i] + WheelRPM(i) * 6f * dt, 360f);
             }
-            if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Y to restart with clutch disengaged."); }
+            if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Triangle to restart with clutch disengaged."); }
             WheelHP = DriveMath.Horsepower(AxleTorqueNm, (WheelRPM(0) + WheelRPM(1)) * 0.5f);
 
             AntiRoll(0, 1, spec.frontAntiRoll);
@@ -342,7 +342,7 @@ namespace Rocko
             EngineRunning = true;
             Physics.SyncTransforms();
             Body.WakeUp();
-            SetNotice("Neutral · Shift / RB for 1st, Ctrl / LB for reverse.");
+            SetNotice("Neutral · Shift / R1 for 1st, Ctrl / L1 for reverse.");
         }
 
         //

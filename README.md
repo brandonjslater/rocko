@@ -41,32 +41,32 @@ The project uses Unity's **Built-in Render Pipeline**. Do not convert it to URP/
 
 ## Controls
 
-Controller labels below use Xbox names. PlayStation equivalents are Cross = A, Circle = B, Square = X, Triangle = Y, R1 = RB, and L1 = LB.
+Controller prompts default to DualSense button names. The underlying gamepad bindings are unchanged; other compatible controllers still work.
 
-| Action | Keyboard / mouse | Controller |
+| Action | Keyboard / mouse | DualSense |
 |---|---|---|
 | Walk | WASD | Left stick |
 | Look | Mouse | Right stick |
-| Enter / exit car | E | A |
-| Throttle | W | RT |
-| Service brake | S | LT |
-| Steer | A / D | Left stick X |
-| Gear up | Shift | RB |
-| Gear down | Ctrl | LB |
-| Disengage clutch | Hold C | Hold X |
-| Handbrake | Hold Space | Hold B |
-| Restart stalled engine | I | Y |
-| Reset outside car at garage | R | Back / Share |
+| Enter / exit car | E | Cross |
+| Throttle | W | R2 |
+| Service brake | S | L2 |
+| Steer | A / D | Left stick horizontal |
+| Gear up | Shift | R1 |
+| Gear down | Ctrl | L1 |
+| Disengage clutch | Hold C | Hold Square |
+| Handbrake | Hold Space | Hold Circle |
+| Restart stalled engine | I | Triangle |
+| Reset outside car at garage | R | Create |
 | Stage straight test, seated | F2 | D-pad up |
 | Toggle clutch assistance | F3 | D-pad left |
 | Start / stop CSV recording | F5 | D-pad right |
 | Toggle help | F1 | D-pad down |
-| Center view | V | Press right stick |
-| Pause / release mouse | Esc | Start / Options |
+| Center view | V | R3 (press right stick) |
+| Pause / release mouse | Esc | Options |
 
 **Manual transmission only:** the sequence is **R → N → 1 → 2 → 3 → 4 → 5**. There are no automatic gear changes. From neutral, Ctrl selects reverse. W is the accelerator in reverse as well; S always brakes.
 
-**Clutch assistance starts enabled.** It operates the clutch during launch and your requested shifts. For full clutch operation, press F3, hold C to select a gear, apply throttle, then release C. The digital keyboard clutch is smoothed but is still a binary input; controller X is also a button, not an analog pedal. The engine can stall. Over-rev downshifts and moving reverse selection are blocked as prototype usability guards.
+**Clutch assistance starts enabled.** It operates the clutch during launch and your requested shifts. For full clutch operation, press F3, hold C to select a gear, apply throttle, then release C. The digital keyboard clutch is smoothed but is still a binary input; controller Square is also a button, not an analog pedal. The engine can stall. Over-rev downshifts and moving reverse selection are blocked as prototype usability guards.
 
 ## Included
 

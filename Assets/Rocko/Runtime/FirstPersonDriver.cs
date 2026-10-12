@@ -55,9 +55,9 @@ namespace Rocko
             if (Driving)
             {
                 yaw = Mathf.Clamp(yaw, -135, 135);
-                Prompt = !car.EngineRunning ? "I / Y  ·  Restart engine" : car.Gear == 0
-                    ? "NEUTRAL · Shift / RB for 1st · Ctrl / LB for reverse · W / RT to accelerate"
-                    : car.SpeedMPH < 1.1f ? "W / RT  ·  Accelerate     E / A  ·  Exit Rocko"
+                Prompt = !car.EngineRunning ? "I / Triangle  ·  Restart engine" : car.Gear == 0
+                    ? "NEUTRAL · Shift / R1 for 1st · Ctrl / L1 for reverse · W / R2 to accelerate"
+                    : car.SpeedMPH < 1.1f ? "W / R2  ·  Accelerate     E / Cross  ·  Exit Rocko"
                     : "Stop to exit  ·  V / R-stick  ·  Center view";
                 if (controls.Interact && car.SpeedMPH < 1.1f) TryExit();
             }
@@ -69,7 +69,7 @@ namespace Rocko
                 Vector3 move = (transform.right * controls.Move.x + transform.forward * controls.Move.y) * 3.2f;
                 capsule.Move((move + Vector3.up * verticalSpeed) * Time.deltaTime);
                 bool nearDoor = Vector3.Distance(transform.position, car.transform.TransformPoint(new Vector3(-1.1f, 0, -0.25f))) < 2.1f;
-                Prompt = nearDoor ? "E / A  ·  Enter Rocko" : "Walk to the driver's door  ·  WASD / left stick";
+                Prompt = nearDoor ? "E / Cross  ·  Enter Rocko" : "Walk to the driver's door  ·  WASD / left stick";
                 if (nearDoor && controls.Interact && car.SpeedMPH < 1.1f) Enter();
             }
             if (transform.position.y < -20 || car.transform.position.y < -20) ResetGarage();
