@@ -79,7 +79,7 @@ namespace Rocko
             {
                 if (controls.Up) RequestShift(1);
                 if (controls.Down) RequestShift(-1);
-                if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / Square to shift")); }
+                if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / L1 to shift")); }
                 if (controls.Restart && !EngineRunning)
                 {
                     if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; drivetrain.EngineOmega = omega; }
@@ -109,7 +109,7 @@ namespace Rocko
             if (!DriveMath.CanSelect(target, Body.linearVelocity.magnitude, wheelRPM, spec) || (target > 0 && ForwardSpeed < -0.5f))
             { SetNotice("Shift blocked: speed, RPM, or gear limit."); return; }
             if (!clutchAssist && controls.Clutch < 0.8f && target != 0)
-            { SetNotice("Hold C / Square to disengage the clutch first."); return; }
+            { SetNotice("Hold C / L1 to disengage the clutch first."); return; }
             pendingGear = target;
             shiftTime = 0.24f;
         }
@@ -342,7 +342,7 @@ namespace Rocko
             EngineRunning = true;
             Physics.SyncTransforms();
             Body.WakeUp();
-            SetNotice("Neutral · Shift / R1 for 1st, Ctrl / L1 for reverse.");
+            SetNotice("Neutral · Shift / Circle for 1st, Ctrl / Square for reverse.");
         }
 
         //

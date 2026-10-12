@@ -112,9 +112,9 @@ namespace Rocko
             string[] lines = {
                 "Walk / throttle / brake     WASD                         Left stick / R2 / L2",
                 "Look around                    Mouse                         Right stick",
-                "Enter / exit                       E                                   Cross",
-                "Gear up / down               Shift / Ctrl                  R1 / L1",
-                "Clutch / handbrake          C / Space                    Square / Circle",
+                "Enter / exit                       E                                   R1",
+                "Gear up / down               Shift / Ctrl                  Circle / Square",
+                "Clutch / handbrake          C / Space                    L1 / Cross",
                 "Restart stalled engine     I                                    Triangle",
                 "Garage reset                    R                                   Create",
                 "Stage straight run            F2                                D-pad up",

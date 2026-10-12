@@ -47,14 +47,14 @@ Controller prompts default to DualSense button names. The underlying gamepad bin
 |---|---|---|
 | Walk | WASD | Left stick |
 | Look | Mouse | Right stick |
-| Enter / exit car | E | Cross |
+| Enter / exit car | E | R1 |
 | Throttle | W | R2 |
 | Service brake | S | L2 |
 | Steer | A / D | Left stick horizontal |
-| Gear up | Shift | R1 |
-| Gear down | Ctrl | L1 |
-| Disengage clutch | Hold C | Hold Square |
-| Handbrake | Hold Space | Hold Circle |
+| Gear up | Shift | Circle |
+| Gear down | Ctrl | Square |
+| Disengage clutch | Hold C | Hold L1 |
+| Handbrake | Hold Space | Hold Cross |
 | Restart stalled engine | I | Triangle |
 | Reset outside car at garage | R | Create |
 | Stage straight test, seated | F2 | D-pad up |
@@ -66,7 +66,7 @@ Controller prompts default to DualSense button names. The underlying gamepad bin
 
 **Manual transmission only:** the sequence is **R → N → 1 → 2 → 3 → 4 → 5**. There are no automatic gear changes. From neutral, Ctrl selects reverse. W is the accelerator in reverse as well; S always brakes.
 
-**Clutch assistance starts enabled.** It operates the clutch during launch and your requested shifts. For full clutch operation, press F3, hold C to select a gear, apply throttle, then release C. The digital keyboard clutch is smoothed but is still a binary input; controller Square is also a button, not an analog pedal. The engine can stall. Over-rev downshifts and moving reverse selection are blocked as prototype usability guards.
+**Clutch assistance starts enabled.** It operates the clutch during launch and your requested shifts. For full clutch operation, press F3, hold C to select a gear, apply throttle, then release C. The digital keyboard clutch is smoothed but is still a binary input; controller L1 is also a button, not an analog pedal. The engine can stall. Over-rev downshifts and moving reverse selection are blocked as prototype usability guards.
 
 ## Included
 
