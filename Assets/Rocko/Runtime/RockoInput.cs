@@ -9,7 +9,7 @@ namespace Rocko
         public float Throttle, Brake, Steer, Clutch;
         public Vector2 Move, Look;
         public bool Up, Down, Interact, Reset, Straight, Restart, Assist, Log, Pause, Handbrake;
-        public bool Help, Recenter;
+        public bool Help, Recenter, Circuit;
 
         //
         // @description - Sample keyboard, mouse, and standardized gamepad controls without legacy axes
@@ -40,6 +40,7 @@ namespace Rocko
             Assist = (k != null && k.f3Key.wasPressedThisFrame) || (g != null && g.dpad.left.wasPressedThisFrame);
             Log = (k != null && k.f5Key.wasPressedThisFrame) || (g != null && g.dpad.right.wasPressedThisFrame);
             Pause = (k != null && k.escapeKey.wasPressedThisFrame) || (g != null && g.startButton.wasPressedThisFrame);
+            Circuit = k != null && k.f4Key.wasPressedThisFrame;
             Help = (k != null && k.f1Key.wasPressedThisFrame) || (g != null && g.dpad.down.wasPressedThisFrame);
             Recenter = (k != null && k.vKey.wasPressedThisFrame) || (g != null && g.rightStickButton.wasPressedThisFrame);
         }

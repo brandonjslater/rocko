@@ -180,6 +180,52 @@ namespace Rocko.Tests
         }
 
         //
+        // @description - Verify Laguna's closed road collision, spawn, launch, and return to garage
+        // @return {IEnumerator} - Exercises the circuit through its actual gameplay entry point
+        //
+        [UnityTest]
+        public IEnumerator LagunaCircuitHasContinuousRoadAndLaunches()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            RockoVehicle car = driver.car;
+            driver.StageCircuit();
+            car.controls.enabled = false;
+            try
+            {
+                car.controls.Throttle = car.controls.Brake = car.controls.Clutch = car.controls.Steer = 0;
+                car.controls.Handbrake = false;
+                LagunaSeca track = Object.FindFirstObjectByType<LagunaSeca>();
+                Assert.That(track.Length, Is.EqualTo(3601.712f).Within(0.2f));
+                MeshCollider road = track.transform.Find("Closed asphalt circuit").GetComponent<MeshCollider>();
+                Physics.SyncTransforms();
+                for (int i=0;i<track.Points.Length;i+=10)
+                {
+                    Vector3 point=track.Points[i];
+                    Assert.That(road.Raycast(new Ray(point+Vector3.up*2,Vector3.down),out RaycastHit hit,3), Is.True, "Road collision missing at sample " + i);
+                    Assert.That(hit.normal.y, Is.GreaterThan(.85f), "Unexpected road grade at sample " + i);
+                }
+                Assert.That(Vector3.Distance(track.Points[0],track.Points[track.Points.Length-1]), Is.LessThan(2));
+                for(int i=0;i<100;i++) yield return new WaitForFixedUpdate();
+                Assert.That(car.GroundedWheels, Is.EqualTo(4));
+                car.clutchAssist=true;
+                car.RequestShift(1);car.controls.Throttle=1;
+                for(int i=0;i<300;i++) yield return new WaitForFixedUpdate();
+                Assert.That(car.ForwardSpeed, Is.GreaterThan(2));
+                driver.StageCircuit();
+                Assert.That(Object.FindObjectsByType<LagunaSeca>(FindObjectsSortMode.None).Length, Is.EqualTo(1), "Reset must reuse the circuit.");
+                driver.ResetGarage();
+                Assert.That(driver.OnCircuit, Is.False);
+                Assert.That(driver.Driving, Is.False);
+            }
+            finally
+            {
+                driver.ResetGarage();car.controls.enabled=true;
+            }
+        }
+
+        //
         // @description - Load the real scene, verify on-foot spawn, then exercise its actual launch powertrain
         // @return {IEnumerator} - Unity coroutine performing physics smoke assertions
         //

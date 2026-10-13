@@ -14,6 +14,8 @@ namespace Rocko
         public bool ShowHelp { get; private set; } = true;
         public bool Driving { get { return car.occupied; } }
         public string Prompt { get; private set; }
+        public bool OnCircuit { get; private set; }
+        private LagunaSeca circuit;
         private CharacterController capsule;
         private float yaw = 90, pitch = 12, verticalSpeed;
 
@@ -42,9 +44,11 @@ namespace Rocko
             if (controls.Pause) SetPaused(!Paused);
             if (controls.Help) ShowHelp = !ShowHelp;
             if (Paused) return;
+            if (controls.Circuit) { StageCircuit(); return; }
             if (controls.Reset) { ResetGarage(); return; }
             if (controls.Straight)
             {
+                OnCircuit = false;
                 car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
                 Enter(); telemetry.ResetRun(); return;
             }
@@ -123,11 +127,27 @@ namespace Rocko
         }
 
         //
+        // @description - Build Laguna Seca on demand and stage the existing car at start/finish
+        // @return {Void} - Seats the player at the circuit with neutral selected
+        //
+        public void StageCircuit()
+        {
+            if (circuit == null) circuit = new GameObject("Laguna Seca / approximate reference layout").AddComponent<LagunaSeca>();
+            car.ResetAt(circuit.StartPosition, circuit.StartRotation);
+            OnCircuit = true;
+            Enter();
+            telemetry.ResetRun();
+            SetPaused(false);
+            car.SetNotice("Laguna Seca · approximate layout · F4 reset · R / Create return to garage");
+        }
+
+        //
         // @description - Restore the original garage spawn outside the car
         // @return {Void} - Resets player, vehicle, and timing data
         //
         public void ResetGarage()
         {
+            OnCircuit = false;
             car.occupied = false;
             car.ResetAt(ProvingGround.GarageCar, Quaternion.identity);
             capsule.enabled = false;

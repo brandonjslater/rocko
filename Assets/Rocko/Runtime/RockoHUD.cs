@@ -26,7 +26,7 @@ namespace Rocko
             float offsetY = (Screen.height - 900 * scale) * 0.5f;
             GUI.matrix = Matrix4x4.TRS(new Vector3(offsetX, offsetY, 0), Quaternion.identity, Vector3.one * scale);
             Fill(new Rect(28, 25, 374, 65), ink);
-            Text(new Rect(46, 35, 330, 25), "ROCKO  /  PROVING GROUND", heading, mint);
+            Text(new Rect(46, 35, 330, 25), driver.OnCircuit ? "ROCKO  /  LAGUNA SECA" : "ROCKO  /  PROVING GROUND", heading, mint);
             Text(new Rect(46, 65, 330, 20), "GTX 16V   ·   DEVELOPMENT BUILD 0.1", small, Color.white);
             Fill(new Rect(1180, 25, 392, 65), ink);
             Text(new Rect(1198, 37, 355, 24), car.Surface.ToUpperInvariant() + "   /   " + (car.clutchAssist ? "CLUTCH ASSIST" : "MANUAL CLUTCH"), body, Color.white);
@@ -44,14 +44,25 @@ namespace Rocko
                 Metric(890, "WHEEL OUTPUT / HP", car.WheelHP.ToString("0.0"), "Signed driven-axle shaft power");
                 Metric(1192, "AXLE TORQUE / LB-FT", (car.AxleTorqueNm * DriveMath.NmToLbFt).ToString("0"), "Crank " + (car.CrankTorqueNm * DriveMath.NmToLbFt).ToString("0") + " lb-ft");
                 Fill(new Rect(28, 111, 355, 210), ink);
-                Text(new Rect(46, 126, 320, 23), "STANDING-START TEST", body, mint);
+                Text(new Rect(46, 126, 320, 23), driver.OnCircuit ? "CIRCUIT / APPROXIMATE LAYOUT" : "STANDING-START TEST", body, mint);
+                if (driver.OnCircuit)
+                {
+                    Text(new Rect(46, 157, 320, 25), "2.238 miles / 3.602 km", body, Color.white);
+                    Text(new Rect(46, 187, 320, 25), "11 turns / follow corner boards", small, Color.white);
+                    Text(new Rect(46, 217, 320, 25), "Corkscrew: blind downhill left/right", small, Color.white);
+                    Text(new Rect(46, 247, 320, 25), "Estimated elevations and road width", small, orange);
+                    Text(new Rect(46, 278, 320, 22), "F5 / D-pad right: record driving data", small, mint);
+                }
+                else
+                {
                 Text(new Rect(46, 157, 320, 25), "0–60 mph       " + Seconds(telemetry.ZeroTo60), body, Color.white);
                 Text(new Rect(46, 187, 320, 25), "0–100 km/h    " + Seconds(telemetry.ZeroTo100Kph), body, Color.white);
                 Text(new Rect(46, 217, 320, 25), "⅛ mile             " + Seconds(telemetry.Eighth), body, Color.white);
                 Text(new Rect(46, 247, 320, 25), "¼ mile             " + Seconds(telemetry.Quarter), body, Color.white);
                 Text(new Rect(46, 278, 320, 22), "¼ finish " + telemetry.QuarterFinishMPH.ToString("0.0") + " mph   ·   Max " + telemetry.MaximumMPH.ToString("0.0"), small, mint);
+                }
                 Fill(new Rect(28, 333, 355, 59), ink);
-                Text(new Rect(46, 343, 320, 43), telemetry.Status, small, Color.white);
+                Text(new Rect(46, 343, 320, 43), driver.OnCircuit ? "F4: restart circuit    R / Create: garage" : telemetry.Status, small, Color.white);
                 Fill(new Rect(28, 404, 355, 140), ink);
                 Text(new Rect(46, 414, 320, 22), "WHEEL DIAGNOSTICS · contact " + car.GroundedWheels + "/4", small, mint);
                 Text(new Rect(46, 440, 320, 22), "Front RPM  " + car.WheelRPM(0).ToString("0") + " / " + car.WheelRPM(1).ToString("0"), small, Color.white);
@@ -107,7 +118,7 @@ namespace Rocko
         //
         private void DrawHelp()
         {
-            Fill(new Rect(450, 110, 700, 544), new Color(0.025f, 0.045f, 0.06f, 0.98f));
+            Fill(new Rect(450, 110, 700, 560), new Color(0.025f, 0.045f, 0.06f, 0.98f));
             Text(new Rect(480, 134, 630, 30), driver.Paused ? "PAUSED / ROCKO" : "WELCOME TO ROCKO", heading, mint);
             string[] lines = {
                 "Walk / throttle / brake     WASD                         Left stick / R2 / L2",
@@ -124,6 +135,7 @@ namespace Rocko
             };
             for (int i = 0; i < lines.Length; i++) Text(new Rect(480, 184 + i * 29, 638, 28), lines[i], body, Color.white);
             Text(new Rect(480, 516, 636, 47), "Manual gears only. Start in neutral. Shift once for 1st; Ctrl once for R. Clutch assistance is on by default. Specs still require handling validation.", small, mint);
+            if (GUI.Button(new Rect(480, 625, 618, 32), "DRIVE LAGUNA SECA  /  F4")) driver.StageCircuit();
             if (driver.Paused)
             {
                 if (GUI.Button(new Rect(480, 582, 298, 42), "RESUME")) driver.SetPaused(false);

@@ -1,5 +1,17 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Laguna Seca reference circuit
+
+Press **F4** in the Game view, or open **Esc / Options** and click **DRIVE LAGUNA SECA**. The existing Rocko is placed at start/finish in neutral, facing the driving direction. F4 restarts there; **R / Create** returns to the garage and **F2 / D-pad up** returns to the measured straight. Controller driving bindings are unchanged. The circuit is generated once on first entry and reused on resets.
+
+This is a driveable **approximation**, not a laser-scanned or surveyed replica. Its closed centerline is scaled to **2.238 miles / 3601.712 m** and traced from the official racing-lines flyer. It includes the Andretti Hairpin, uphill section, Corkscrew, Rainey Curve, and final corner, with an estimated 54.86 m elevation range. The 11 m road width, detailed elevations, corner radii, runoff and surrounding hills are provisional. There is no calibrated camber, authentic pit complex, lap timer or track-limit enforcement. Do not compare its lap times to real-world records.
+
+The road is a continuous mesh with collision, edge markings, corner boards, painted curbs, dry runoff and surrounding terrain. F5 records the existing vehicle telemetry; standing-start timing is disabled away from the proving-ground strip. The HUD replaces strip results with circuit information.
+
+References: [official track information](https://weathertechraceway.com/pages/track-information) and [official racing-lines flyer](https://cdn.shopify.com/s/files/1/0678/1914/3354/files/WeatherTech_Raceway_Laguna_Seca_Racing_Lines_Flyer.pdf?v=1733112124). The flyer was used as a layout reference; its artwork is not included in the project. Generated geometry is original, with no official affiliation.
+
+Validation: numerical centerline checks for lap length, finite samples, spacing, elevation and plan shape were run outside Unity. Run **LagunaCircuitHasContinuousRoadAndLaunches** in PlayMode for road collision, spawn, launch, reset reuse and garage return. Unity execution and a full driving lap still require Editor verification.
+
 ### Driving-feel tuning branch
 
 This pass preserves engine power, gearing, the shared drivetrain, and the native wheel keep-alive fix. Full brake torque is unchanged, but pedal pressure builds over 0.25 seconds with a progressive response curve. Release is immediate. Manual clutch release now moves through a smooth bite curve; depressing the clutch still removes the requested capacity immediately, subject to the existing fast pressure decay. Assist retains its tested launch controller.
