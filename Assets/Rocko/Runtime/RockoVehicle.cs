@@ -36,7 +36,7 @@ namespace Rocko
         public bool ClutchLocked { get { return Gear != 0 && !Shifting && ClutchEngagement > 0.95f && Mathf.Abs(RPM - ShaftRPM()) < 80f; } }
         public string Surface { get; private set; } = "Asphalt";
         public string Notice { get; private set; } = "Select 1st with Shift. W to accelerate.";
-        private float omega, throttle, steering, shiftTime, noticeTime;
+        private float omega, throttle, steering, shiftTime, noticeTime, brakePedal, releasedClutch;
         private int pendingGear;
         private bool assistingLaunch = true;
         private readonly LongitudinalDrivetrain drivetrain = new LongitudinalDrivetrain();
@@ -79,7 +79,7 @@ namespace Rocko
             {
                 if (controls.Up) RequestShift(1);
                 if (controls.Down) RequestShift(-1);
-                if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / X to shift")); }
+                if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / L1 to shift")); }
                 if (controls.Restart && !EngineRunning)
                 {
                     if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; drivetrain.EngineOmega = omega; }
@@ -109,7 +109,7 @@ namespace Rocko
             if (!DriveMath.CanSelect(target, Body.linearVelocity.magnitude, wheelRPM, spec) || (target > 0 && ForwardSpeed < -0.5f))
             { SetNotice("Shift blocked: speed, RPM, or gear limit."); return; }
             if (!clutchAssist && controls.Clutch < 0.8f && target != 0)
-            { SetNotice("Hold C / X to disengage the clutch first."); return; }
+            { SetNotice("Hold C / L1 to disengage the clutch first."); return; }
             pendingGear = target;
             shiftTime = 0.24f;
         }
@@ -123,7 +123,14 @@ namespace Rocko
             if (Body == null) return;
             float dt = Time.fixedDeltaTime;
             float inputThrottle = occupied ? controls.Throttle : 0;
-            float brake = occupied ? controls.Brake : 0;
+            float brakeInput = occupied ? Mathf.Clamp01(controls.Brake) : 0;
+            // 🚗 Build pedal pressure over 0.25 seconds; releasing the pedal removes brakes immediately.
+            brakePedal = brakeInput < brakePedal ? brakeInput
+                : Mathf.MoveTowards(brakePedal, brakeInput, dt * spec.brakeApplyRate);
+            float brake = (float)DrivingFeel.BrakeDemand(brakePedal);
+            float releaseTarget = occupied ? 1 - Mathf.Clamp01(controls.Clutch) : 0;
+            releasedClutch = releaseTarget < releasedClutch ? releaseTarget
+                : Mathf.MoveTowards(releasedClutch, releaseTarget, dt * spec.manualClutchReleaseRate);
             // A parked chassis can sleep; player input must resume wheel simulation.
             if (occupied && (inputThrottle > 0.01f || brake > 0.01f ||
                 Mathf.Abs(controls.Steer) > 0.01f || Shifting)) Body.WakeUp();
@@ -150,19 +157,17 @@ namespace Rocko
                 WheelFrictionCurve forward = wheels[i].forwardFriction;
                 forward.stiffness = 0; // Longitudinal forces have exactly one owner: drivetrain. 🚗
                 wheels[i].forwardFriction = forward;
-                WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
-                lateral.stiffness = grip;
-                wheels[i].sidewaysFriction = lateral;
+
                 if (grounded[i]) rollingForce += rolling * Mathf.Max(0, contacts[i].force);
                 // 🚗 Only the brake pedal and handbrake may command wheel brakes.
-                drivetrain.BrakeTorque[i] = brake * (i < 2 ? 900f : 520f);
+                drivetrain.BrakeTorque[i] = brake * (i < 2 ? spec.frontBrakeTorque : spec.rearBrakeTorque);
                 if (i >= 2 && (!occupied || controls.Handbrake)) drivetrain.BrakeTorque[i] += 1600f;
                 // With zero actuation PhysX can pin the chassis even at zero forward stiffness.
                 // Keep all native wheels out of that mode; the shared solver owns drive/brakes.
                 wheels[i].motorTorque = NativeWheelKeepAliveTorque;
                 wheels[i].brakeTorque = 0;
                 drivetrain.NormalLoad[i] = grounded[i] ? Mathf.Max(0, contacts[i].force) : 0;
-                drivetrain.Grip[i] = grip;
+                drivetrain.Grip[i] = grip * spec.tireGripScale;
                 drivetrain.WheelInertia[i] = 0.5f * wheels[i].mass * spec.tireRadius * spec.tireRadius;
                 tireDirections[i] = grounded[i] ? contacts[i].forwardDir.normalized
                     : transform.TransformDirection(Quaternion.Euler(0, wheels[i].steerAngle, 0) * Vector3.forward);
@@ -183,7 +188,8 @@ namespace Rocko
             if (EngineRunning && RPM < spec.idleRPM + 100 && fuel < 0.2f)
                 netTorque += Mathf.Clamp((spec.idleRPM - RPM) * 0.6f + 16f, 0, 80f);
             CrankTorqueNm = netTorque;
-            float engagement = Gear == 0 || Shifting || !occupied ? 0 : 1 - controls.Clutch;
+            float engagement = Gear == 0 || Shifting || !occupied ? 0
+                : clutchAssist ? 1 - controls.Clutch : (float)DrivingFeel.ClutchBite(releasedClutch);
             if (clutchAssist && engagement > 0)
             {
                 float shaft = ShaftRPM();
@@ -214,10 +220,22 @@ namespace Rocko
             MaxDrivenSlip = Mathf.Max(Mathf.Abs((float)drivetrain.Slip[0]), Mathf.Abs((float)drivetrain.Slip[1]));
             for (int i = 0; i < 4; i++)
             {
+                // Bounded grip blending avoids abruptly removing native lateral authority.
+                // This is an approximation across the separate PhysX lateral step, not a full combined tire solver.
+                WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
+                double peakForce = drivetrain.NormalLoad[i] * drivetrain.Grip[i] * 1.03;
+                double frontCapacity = (drivetrain.NormalLoad[0]*drivetrain.Grip[0] +
+                    drivetrain.NormalLoad[1]*drivetrain.Grip[1])*1.03;
+                double driveUsage = Mathf.Max(0, AxleTorqueNm) /
+                    System.Math.Max(1, frontCapacity*spec.tireRadius);
+                double axleBalance = DrivingFeel.FwdBalance(i<2, ForwardSpeed, driveUsage, brake, -LongitudinalG);
+                lateral.stiffness = (float)(drivetrain.Grip[i] * spec.lateralGripScale * axleBalance * DrivingFeel.LateralGrip(
+                    drivetrain.ForceImpulse[i] / dt, peakForce));
+                wheels[i].sidewaysFriction = lateral;
                 if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);
                 wheelAngles[i] = Mathf.Repeat(wheelAngles[i] + WheelRPM(i) * 6f * dt, 360f);
             }
-            if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Y to restart with clutch disengaged."); }
+            if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Triangle to restart with clutch disengaged."); }
             WheelHP = DriveMath.Horsepower(AxleTorqueNm, (WheelRPM(0) + WheelRPM(1)) * 0.5f);
 
             AntiRoll(0, 1, spec.frontAntiRoll);
@@ -236,7 +254,7 @@ namespace Rocko
         //
         private void ApplySteering()
         {
-            float angle = steering * Mathf.Lerp(33, 12, Mathf.Clamp01(Mathf.Abs(ForwardSpeed) / 45f));
+            float angle = steering * (float)DrivingFeel.SteeringLimit(ForwardSpeed, spec.steeringSpeedScale);
             if (Mathf.Abs(angle) < 0.01f) { wheels[0].steerAngle = wheels[1].steerAngle = 0; return; }
             float radius = spec.wheelbase / Mathf.Tan(Mathf.Abs(angle) * Mathf.Deg2Rad);
             float inner = Mathf.Atan(spec.wheelbase / (radius - spec.track / 2)) * Mathf.Rad2Deg;
@@ -322,14 +340,14 @@ namespace Rocko
             assistingLaunch = true;
             drivetrain.Reset(spec.idleRPM);
             System.Array.Clear(wheelAngles, 0, wheelAngles.Length);
-            shiftTime = throttle = steering = ClutchEngagement = 0;
+            shiftTime = throttle = steering = brakePedal = releasedClutch = ClutchEngagement = 0;
             AxleTorqueNm = WheelHP = LongitudinalG = LateralG = 0;
             previousVelocity = Vector3.zero;
             omega = spec.idleRPM * Mathf.PI / 30f;
             EngineRunning = true;
             Physics.SyncTransforms();
             Body.WakeUp();
-            SetNotice("Neutral · Shift / RB for 1st, Ctrl / LB for reverse.");
+            SetNotice("Neutral · Shift / Circle for 1st, Ctrl / Square for reverse.");
         }
 
         //

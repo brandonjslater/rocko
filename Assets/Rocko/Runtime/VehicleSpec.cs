@@ -18,7 +18,9 @@ namespace Rocko
         public float track = 1.39f;
         public float finalDrive = 3.667f;
         public float reverseRatio = 3.455f;
-        public float[] forwardRatios = { 3.455f, 2.118f, 1.444f, 1.129f, 0.912f };
+        // Redline road-speed targets: 30 / 51 / 75 / 99 mph at 6800 RPM, 0.288 m tires.
+        // Fifth preserves the previous fourth-to-fifth ratio fraction (0.720 / 0.950).
+        public float[] forwardRatios = { 4.170148f, 2.453028f, 1.668059f, 1.263681f, 0.957737f };
         public float drivelineEfficiency = 0.88f;
         public float dragArea = 0.62f;
         public float rollingCoefficient = 0.013f;
@@ -26,6 +28,15 @@ namespace Rocko
         public float redlineRPM = 6800f;
         public float engineInertia = 0.28f;
         public float clutchCapacityNm = 260f;
+        [Header("Provisional pedal feel calibration")]
+        [Min(0.1f)] public float brakeApplyRate = 4f;
+        [Min(0.1f)] public float manualClutchReleaseRate = 3f;
+        [Min(0f)] public float frontBrakeTorque = 1000f;
+        [Min(0f)] public float rearBrakeTorque = 320f;
+        [Header("Provisional stable handling tune")]
+        [Range(0.5f, 1.5f)] public float tireGripScale = 1.12f;
+        [Range(0.5f, 1.5f)] public float lateralGripScale = 1.08f;
+        [Min(1f)] public float steeringSpeedScale = 13f;
         public float frontSpring = 26000f;
         public float rearSpring = 21000f;
         public float damper = 2700f;

@@ -89,6 +89,30 @@ namespace Rocko.Tests
         }
 
         //
+        // @description - Check requested redline shift speeds and unchanged front-biased brakes
+        // @return {Void} - Verifies road speeds with a synchronized clutch and no tire slip
+        //
+        [Test]
+        public void BaselineMatchesRequestedRedlineShiftSpeeds()
+        {
+            VehicleSpec spec=VehicleSpec.CreateBaseline();
+            try
+            {
+                Assert.That(spec.finalDrive,Is.EqualTo(3.667f));
+                float[] targets={30,51,75,99};
+                for(int i=0;i<targets.Length;i++)
+                {
+                    float mph=spec.redlineRPM/spec.Ratio(i+1)*2*Mathf.PI*spec.tireRadius/60/0.44704f;
+                    Assert.That(mph,Is.EqualTo(targets[i]).Within(.01f),"Redline road speed in gear " + (i+1));
+                }
+                Assert.That(spec.forwardRatios[4]/spec.forwardRatios[3],Is.EqualTo(.720f/.950f).Within(.00001f));
+                Assert.That(spec.frontBrakeTorque+spec.rearBrakeTorque,Is.EqualTo(1320));
+                Assert.That(spec.frontBrakeTorque/(spec.frontBrakeTorque+spec.rearBrakeTorque),Is.InRange(.75f,.76f));
+            }
+            finally { Object.DestroyImmediate(spec); }
+        }
+
+        //
         // @description - Ensure the measured strip uses an exact international mile
         // @return {Void} - NUnit distance assertions
         //

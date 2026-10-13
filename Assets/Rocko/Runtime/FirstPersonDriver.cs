@@ -14,6 +14,8 @@ namespace Rocko
         public bool ShowHelp { get; private set; } = true;
         public bool Driving { get { return car.occupied; } }
         public string Prompt { get; private set; }
+        public bool OnCircuit { get; private set; }
+        private LagunaSeca circuit;
         private CharacterController capsule;
         private float yaw = 90, pitch = 12, verticalSpeed;
 
@@ -42,9 +44,11 @@ namespace Rocko
             if (controls.Pause) SetPaused(!Paused);
             if (controls.Help) ShowHelp = !ShowHelp;
             if (Paused) return;
+            if (controls.Circuit) { StageCircuit(); return; }
             if (controls.Reset) { ResetGarage(); return; }
             if (controls.Straight)
             {
+                OnCircuit = false;
                 car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
                 Enter(); telemetry.ResetRun(); return;
             }
@@ -55,9 +59,9 @@ namespace Rocko
             if (Driving)
             {
                 yaw = Mathf.Clamp(yaw, -135, 135);
-                Prompt = !car.EngineRunning ? "I / Y  ·  Restart engine" : car.Gear == 0
-                    ? "NEUTRAL · Shift / RB for 1st · Ctrl / LB for reverse · W / RT to accelerate"
-                    : car.SpeedMPH < 1.1f ? "W / RT  ·  Accelerate     E / A  ·  Exit Rocko"
+                Prompt = !car.EngineRunning ? "I / Triangle  ·  Restart engine" : car.Gear == 0
+                    ? "NEUTRAL · Shift / Circle for 1st · Ctrl / Square for reverse · W / R2 to accelerate"
+                    : car.SpeedMPH < 1.1f ? "W / R2  ·  Accelerate     E / R1  ·  Exit Rocko"
                     : "Stop to exit  ·  V / R-stick  ·  Center view";
                 if (controls.Interact && car.SpeedMPH < 1.1f) TryExit();
             }
@@ -69,7 +73,7 @@ namespace Rocko
                 Vector3 move = (transform.right * controls.Move.x + transform.forward * controls.Move.y) * 3.2f;
                 capsule.Move((move + Vector3.up * verticalSpeed) * Time.deltaTime);
                 bool nearDoor = Vector3.Distance(transform.position, car.transform.TransformPoint(new Vector3(-1.1f, 0, -0.25f))) < 2.1f;
-                Prompt = nearDoor ? "E / A  ·  Enter Rocko" : "Walk to the driver's door  ·  WASD / left stick";
+                Prompt = nearDoor ? "E / R1  ·  Enter Rocko" : "Walk to the driver's door  ·  WASD / left stick";
                 if (nearDoor && controls.Interact && car.SpeedMPH < 1.1f) Enter();
             }
             if (transform.position.y < -20 || car.transform.position.y < -20) ResetGarage();
@@ -123,11 +127,27 @@ namespace Rocko
         }
 
         //
+        // @description - Build Laguna Seca on demand and stage the existing car at start/finish
+        // @return {Void} - Seats the player at the circuit with neutral selected
+        //
+        public void StageCircuit()
+        {
+            if (circuit == null) circuit = new GameObject("Laguna Seca / approximate reference layout").AddComponent<LagunaSeca>();
+            car.ResetAt(circuit.StartPosition, circuit.StartRotation);
+            OnCircuit = true;
+            Enter();
+            telemetry.ResetRun();
+            SetPaused(false);
+            car.SetNotice("Laguna Seca · approximate layout · F4 reset · R / Create return to garage");
+        }
+
+        //
         // @description - Restore the original garage spawn outside the car
         // @return {Void} - Resets player, vehicle, and timing data
         //
         public void ResetGarage()
         {
+            OnCircuit = false;
             car.occupied = false;
             car.ResetAt(ProvingGround.GarageCar, Quaternion.identity);
             capsule.enabled = false;

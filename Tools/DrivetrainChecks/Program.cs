@@ -3,7 +3,7 @@ using Rocko;
 
 internal static class Program
 {
-    private const double Mass = 1025, Radius = 0.288, Ratio = 3.455 * 3.667;
+    private const double Mass = 1025, Radius = 0.288, Ratio = 4.170148 * 3.667;
 
     //
     // @description - Run deterministic checks against the exact C# solver shipped in the game
@@ -19,6 +19,8 @@ internal static class Program
         Recover("manual CSV 183709", 1468, 5.079, new[] {115.112,115.100,167.152,167.152}, 68.73/0.737562149);
         Shift();
         Limits();
+        PedalAndGrip();
+        FwdCornerBalance();
         Console.WriteLine("PASS: shared C# drivetrain checks. Unity suspension/cornering integration is not exercised here.");
     }
 
@@ -34,7 +36,7 @@ internal static class Program
         for (int i = 0; i < 4; i++)
         {
             model.NormalLoad[i] = Mass * 9.80665 * (i < 2 ? 0.60 : 0.40) / 2;
-            model.Grip[i] = grip;
+            model.Grip[i] = grip * 1.12;
             model.WheelInertia[i] = 0.5 * 16 * Radius * Radius;
             for (int j = 0; j < 4; j++) model.DirectionDot[i * 4 + j] = 1;
         }
@@ -78,29 +80,34 @@ internal static class Program
     private static void Run(bool assist, double dt, int direction, double grip)
     {
         var model = Create(grip);
+        double overallRatio=direction<0?3.455*3.667:Ratio;
         double speed=0, throttle=0, pressure=0, cruise=-1, maxGap=0, brakeStart=-1, coastStart=-1;
-        double coastSpeed=0;
+        double coastSpeed=0, brakePedal=0, releasedClutch=0;
         bool launching=true, sawLock=false, sawPedalRelease=false;
         for (double time=0; time<20; time+=dt)
         {
             if (cruise < 0 && speed * direction >= 5) cruise=time;
             double sinceCruise=cruise < 0 ? -1 : time-cruise;
             double input=sinceCruise >= 2.5 ? 0 : sinceCruise >= 0 ? 0.3 : 1;
-            double brake=sinceCruise >= 4 ? 1 : 0;
+            double brakeInput=sinceCruise >= 4 ? 1 : 0;
+            brakePedal=brakeInput<brakePedal?brakeInput:Move(brakePedal,brakeInput,dt*4);
+            double brake=DrivingFeel.BrakeDemand(brakePedal);
             if (sinceCruise >= 2.5 && coastStart<0) { coastStart=time; coastSpeed=speed*direction; }
             if (sinceCruise >= 4 && brakeStart<0) brakeStart=time;
             double pedal=assist ? 0 : Math.Max(0, 1-(time-0.3));
             if (sinceCruise >= 3.5) pedal=1;
             throttle=Move(throttle,input,dt*4);
             double rpm=model.EngineOmega*30/Math.PI;
-            double shaft=(model.WheelOmega[0]+model.WheelOmega[1])*0.5*Ratio*direction*30/Math.PI;
+            double shaft=(model.WheelOmega[0]+model.WheelOmega[1])*0.5*overallRatio*direction*30/Math.PI;
             double fuel=time<0.24 || rpm>6800 ? 0 : throttle;
             double net=Curve(rpm)*fuel-(1-fuel)*(12+rpm*0.003);
             if (rpm<1000 && fuel<0.2) net+=Math.Clamp((900-rpm)*0.6+16,0,80);
-            double engagement=time<0.24 ? 0 : 1-pedal;
+            double targetRelease=1-pedal;
+            releasedClutch=targetRelease<releasedClutch?targetRelease:Move(releasedClutch,targetRelease,dt*3);
+            double engagement=time<0.24 ? 0 : assist?1-pedal:DrivingFeel.ClutchBite(releasedClutch);
             if (assist && engagement>0)
             {
-                double roadRPM=Math.Abs(speed*Ratio)*30/(Math.PI*Radius);
+                double roadRPM=Math.Abs(speed*overallRatio)*30/(Math.PI*Radius);
                 if (roadRPM<1000 && shaft<1000) launching=true;
                 else if (roadRPM>=1800) launching=false;
                 if (launching)
@@ -116,15 +123,17 @@ internal static class Program
             pressure=Move(pressure,engagement,dt*(engagement<pressure?20:3));
             for (int i=0;i<4;i++)
             {
+                double frontLoad=0.60+0.16*brake;
+                model.NormalLoad[i]=Mass*9.80665*(i<2?frontLoad:1-frontLoad)/2;
                 model.ContactSpeed[i]=speed;
-                model.BrakeTorque[i]=brake*(i<2?900:520);
+                model.BrakeTorque[i]=brake*(i<2?1000:320);
             }
-            model.Step(dt,net,0.28,260*pressure,Ratio*direction,0.88,Mass,Radius);
+            model.Step(dt,net,0.28,260*pressure,overallRatio*direction,0.88,Mass,Radius);
             double impulse=0;
             foreach(double value in model.ForceImpulse) impulse+=value;
             double rolling=-Math.Sign(speed)*Math.Min(0.013*Mass*9.80665,Math.Abs(speed)*Mass/dt);
             speed+=(impulse+(rolling-0.5*1.225*0.62*Math.Abs(speed)*speed)*dt)/Mass;
-            double gap=Math.Abs(model.EngineOmega-(model.WheelOmega[0]+model.WheelOmega[1])*0.5*Ratio*direction)*30/Math.PI;
+            double gap=Math.Abs(model.EngineOmega-(model.WheelOmega[0]+model.WheelOmega[1])*0.5*overallRatio*direction)*30/Math.PI;
             bool locked=pressure>0.95 && gap<80;
             sawLock |= locked;
             if (sinceCruise>=0.5 && sinceCruise<2.5)
@@ -200,7 +209,7 @@ internal static class Program
         for(int i=0;i<4;i++) model.WheelOmega[i]=speed/Radius;
         for(int step=0;step<400;step++)
         {
-            double ratio=step<100?Ratio:2.118*3.667;
+            double ratio=step<100?Ratio:2.453028*3.667;
             double capacity=step>=100 && step<124?0:260;
             for(int i=0;i<4;i++) model.ContactSpeed[i]=speed;
             model.Step(0.01,capacity==0?-20:80,0.28,capacity,ratio,0.88,Mass,Radius);
@@ -213,6 +222,64 @@ internal static class Program
             }
         }
         Console.WriteLine("PASS first-to-second shift and sustained lock");
+    }
+
+    //
+    // @description - Check pedal endpoints, monotonic bite, and bounded lateral grip
+    // @return {Void} - Throws if pedal authority or lateral authority is lost
+    //
+    private static void PedalAndGrip()
+    {
+        Check(DrivingFeel.SteeringLimit(0,13)==33 && DrivingFeel.SteeringLimit(30,13)<6,
+            "Parking authority and reduced high-speed steering", false, 0, 0, 0);
+        Check(DrivingFeel.SteeringLimit(-20,13)==DrivingFeel.SteeringLimit(20,13),
+            "Reverse steering symmetry", false, 0, 0, 0);
+        double previous = 0;
+        for (int i = 0; i <= 100; i++)
+        {
+            double x = i / 100.0;
+            double bite = DrivingFeel.ClutchBite(x);
+            Check(bite >= previous && bite <= 1, "Monotonic bite", false, 0, x, bite);
+            previous = bite;
+            double lateral = DrivingFeel.LateralGrip(x * 3000, 3000);
+            Check(lateral >= 0.90 && lateral <= 1 && (x == 0 || lateral < 1),
+                "Bounded lateral authority", false, 0, x, lateral);
+        }
+        Check(DrivingFeel.ClutchBite(0) == 0 && DrivingFeel.ClutchBite(1) == 1,
+            "Clutch endpoints", false, 0, 0, 0);
+        Check(DrivingFeel.BrakeDemand(0) == 0 && DrivingFeel.BrakeDemand(1) == 1 && DrivingFeel.BrakeDemand(0.5) < 0.5,
+            "Progressive brakes retain full authority", false, 0, 0, 0);
+        Check(DrivingFeel.LateralGrip(-4000, 3000) == 0.90 && DrivingFeel.LateralGrip(0, 0) == 0,
+            "Grip saturation and no load", false, 0, 0, 0);
+        Console.WriteLine("PASS progressive pedals and bounded lateral grip");
+    }
+
+    //
+    // @description - Check low-speed preservation and high-speed FWD axle response ordering
+    // @return {Void} - Verifies response bounds, not full Unity vehicle yaw dynamics
+    //
+    private static void FwdCornerBalance()
+    {
+        foreach(bool front in new[]{true,false})
+            foreach(double brake in new[]{0.0,0.2,1.0})
+                Check(DrivingFeel.FwdBalance(front,13.4112,1,brake,.3)==1,
+                    "Low-speed balance unchanged",false,0,0,0);
+        double coast=DrivingFeel.FwdBalance(true,25,0,0,0);
+        double power=DrivingFeel.FwdBalance(true,25,1,0,0);
+        double trail=DrivingFeel.FwdBalance(true,25,1,.2,.3);
+        double rear=DrivingFeel.FwdBalance(false,25,1,0,0);
+        double rearTrail=DrivingFeel.FwdBalance(false,25,1,.2,.3);
+        Check(power<coast && coast<rear,"Powered front saturates before rear",false,0,0,power);
+        Check(trail/rearTrail>power/rear,"Light braking reduces understeer bias",false,0,0,trail);
+        Check(DrivingFeel.FwdBalance(true,25,1,.2,0)==power,
+            "Brake correction requires actual deceleration",false,0,0,0);
+        Check(DrivingFeel.FwdBalance(true,25,1,1,.3)==power,
+            "Heavy braking does not grant extra rotation correction",false,0,0,0);
+        for(double speed=0;speed<=60;speed+=.5)
+            Check(DrivingFeel.FwdBalance(true,speed,1,.2,.3)>=.7 &&
+                DrivingFeel.FwdBalance(false,speed,1,.2,.3)>=1,
+                "Grip remains bounded",false,0,speed,0);
+        Console.WriteLine("PASS FWD balance: low-speed unchanged, power understeer, bounded trail-brake response");
     }
 
     //

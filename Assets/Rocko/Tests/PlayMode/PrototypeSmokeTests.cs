@@ -143,6 +143,153 @@ namespace Rocko.Tests
         }
 
         //
+        // @description - Exercise progressive brake application and immediate release in the real vehicle
+        // @return {IEnumerator} - Verifies keyboard pedal steps retain full braking authority
+        //
+        [UnityTest]
+        public IEnumerator BrakePressureBuildsAndReleases()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            RockoVehicle car = Object.FindFirstObjectByType<RockoVehicle>();
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            driver.SetPaused(false);
+            car.controls.enabled = false;
+            try
+            {
+                car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
+                car.occupied = true;
+                car.controls.Throttle = car.controls.Clutch = car.controls.Steer = 0;
+                car.controls.Handbrake = false;
+                car.controls.Brake = 1;
+                yield return new WaitForFixedUpdate();
+                Assert.That(car.WheelBrakeTorque(0), Is.GreaterThan(0).And.LessThan(car.spec.frontBrakeTorque));
+                for (float t = 0; t < 0.4f; t += Time.fixedDeltaTime)
+                    yield return new WaitForFixedUpdate();
+                Assert.That(car.WheelBrakeTorque(0), Is.EqualTo(car.spec.frontBrakeTorque).Within(0.1f));
+                car.controls.Brake = 0;
+                yield return new WaitForFixedUpdate();
+                Assert.That(car.WheelBrakeTorque(0), Is.Zero);
+                Assert.That(car.WheelBrakeTorque(2), Is.Zero);
+            }
+            finally
+            {
+                driver.ResetGarage();
+                car.controls.enabled = true;
+            }
+        }
+
+        //
+        // @description - Verify Laguna's closed road collision, spawn, launch, and return to garage
+        // @return {IEnumerator} - Exercises the circuit through its actual gameplay entry point
+        //
+        [UnityTest]
+        public IEnumerator LagunaCircuitHasContinuousRoadAndLaunches()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            RockoVehicle car = driver.car;
+            driver.StageCircuit();
+            car.controls.enabled = false;
+            try
+            {
+                car.controls.Throttle = car.controls.Brake = car.controls.Clutch = car.controls.Steer = 0;
+                car.controls.Handbrake = false;
+                LagunaSeca track = Object.FindFirstObjectByType<LagunaSeca>();
+                Assert.That(track.Length, Is.EqualTo(3601.712f).Within(0.2f));
+                MeshCollider road = track.transform.Find("Closed asphalt circuit").GetComponent<MeshCollider>();
+                Physics.SyncTransforms();
+                Vector3[] roadVertices=road.sharedMesh.vertices;
+                int[] roadTriangles=road.sharedMesh.triangles;
+                for(int t=0;t<roadTriangles.Length;t+=3)
+                {
+                    Vector3 a=roadVertices[roadTriangles[t]], b=roadVertices[roadTriangles[t+1]], c=roadVertices[roadTriangles[t+2]];
+                    Assert.That(Vector3.Cross(b-a,c-a).normalized.y,Is.GreaterThan(.9f),
+                        "Excessively steep or folded driving triangle " + t/3);
+                }
+                for (int i=0;i<track.Points.Length;i+=10)
+                {
+                    Vector3 point=track.Points[i];
+                    Assert.That(road.Raycast(new Ray(point+Vector3.up*2,Vector3.down),out RaycastHit hit,3), Is.True, "Road collision missing at sample " + i);
+                    Assert.That(hit.normal.y, Is.GreaterThan(.85f), "Unexpected road grade at sample " + i);
+                    // Query the scene, not just the asphalt collider: runoff/terrain can obstruct it.
+                    Vector3 across=Vector3.Cross(Vector3.up,track.Direction(i)).normalized;
+                    foreach(float offset in new[]{-4.8f,-2.4f,0f,2.4f,4.8f})
+                    {
+                        Vector3 lane=point+across*offset;
+                        RaycastHit[] hits=Physics.RaycastAll(lane+Vector3.up*80,Vector3.down,100);
+                        foreach(RaycastHit obstruction in hits)
+                        {
+                            if(!obstruction.collider.transform.IsChildOf(track.transform)) continue;
+                            Assert.That(obstruction.point.y, Is.LessThanOrEqualTo(lane.y+.08f),
+                                "Track mesh obstructs lane at sample " + i + ", offset " + offset + ": " + obstruction.collider.name);
+                        }
+                    }
+                }
+                Assert.That(Vector3.Distance(track.Points[0],track.Points[track.Points.Length-1]), Is.LessThan(2));
+                for(int i=0;i<100;i++) yield return new WaitForFixedUpdate();
+                Assert.That(car.GroundedWheels, Is.EqualTo(4));
+                car.clutchAssist=true;
+                car.RequestShift(1);car.controls.Throttle=1;
+                for(int i=0;i<300;i++) yield return new WaitForFixedUpdate();
+                Assert.That(car.ForwardSpeed, Is.GreaterThan(2));
+                driver.StageCircuit();
+                Assert.That(Object.FindObjectsByType<LagunaSeca>(FindObjectsSortMode.None).Length, Is.EqualTo(1), "Reset must reuse the circuit.");
+                driver.ResetGarage();
+                Assert.That(driver.OnCircuit, Is.False);
+                Assert.That(driver.Driving, Is.False);
+            }
+            finally
+            {
+                driver.ResetGarage();car.controls.enabled=true;
+            }
+        }
+
+        //
+        // @description - Brake through a moderate flat-pad turn without runaway yaw or rollover
+        // @return {IEnumerator} - Checks the actual shared drivetrain and PhysX lateral integration
+        //
+        [UnityTest]
+        public IEnumerator ModerateCornerBrakingRemainsStable()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            RockoVehicle car = driver.car;
+            driver.SetPaused(false);
+            car.controls.enabled=false;
+            try
+            {
+                car.ResetAt(new Vector3(92,.08f,125),Quaternion.identity);
+                car.occupied=true;car.clutchAssist=true;
+                car.controls.Throttle=car.controls.Brake=car.controls.Steer=car.controls.Clutch=0;
+                car.controls.Handbrake=false;
+                for(int i=0;i<100;i++) yield return new WaitForFixedUpdate();
+                car.RequestShift(1);car.controls.Throttle=1;
+                for(int i=0;i<400 && car.ForwardSpeed<9;i++) yield return new WaitForFixedUpdate();
+                Assert.That(car.ForwardSpeed,Is.GreaterThan(8),"Reach the test entry speed.");
+                car.controls.Throttle=0;car.controls.Steer=.12f;
+                car.controls.Clutch=1;car.controls.Brake=.6f;
+                float initialSpeed=car.ForwardSpeed;
+                for(int i=0;i<150;i++)
+                {
+                    yield return new WaitForFixedUpdate();
+                    Assert.That(Mathf.Abs(car.Body.angularVelocity.y),Is.LessThan(1.2f),"Moderate corner braking must not create runaway yaw.");
+                    Assert.That(Vector3.Dot(car.transform.up,Vector3.up),Is.GreaterThan(.9f));
+                    for(int w=0;w<4;w++)
+                        if(car.wheels[w].GetGroundHit(out WheelHit contact) && contact.force>100)
+                            Assert.That(car.wheels[w].sidewaysFriction.stiffness,Is.GreaterThanOrEqualTo(.74f),"Asphalt lateral authority must not collapse.");
+                }
+                Assert.That(car.SpeedMPH/2.2369363f,Is.LessThan(initialSpeed*.75f),"Stability must not come from disabling brakes.");
+            }
+            finally
+            {
+                driver.ResetGarage();car.controls.enabled=true;
+            }
+        }
+
+        //
         // @description - Load the real scene, verify on-foot spawn, then exercise its actual launch powertrain
         // @return {IEnumerator} - Unity coroutine performing physics smoke assertions
         //

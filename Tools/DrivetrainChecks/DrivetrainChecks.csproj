@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="../../Assets/Rocko/Runtime/DrivingFeel.cs" Link="DrivingFeel.cs" />
     <Compile Include="../../Assets/Rocko/Runtime/LongitudinalDrivetrain.cs" Link="LongitudinalDrivetrain.cs" />
   </ItemGroup>
 </Project>

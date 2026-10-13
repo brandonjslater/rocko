@@ -1,5 +1,60 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Requested redline shift speeds
+
+The baseline now targets **30 / 51 / 75 / 99 mph** at the existing **6800 RPM** limiter in gears 1–4. Ratios are **4.170148 / 2.453028 / 1.668059 / 1.263681 / 0.957737**, using the existing 3.667 final drive and 0.288 m tire radius. Fifth preserves the previous fourth-to-fifth RPM-drop fraction. Reverse is unchanged.
+
+These are calculated road speeds with the clutch locked and no tire slip, not automatic shift triggers. Shifting remains manual. Upshifts at those speeds settle near **4000 / 4624 / 5152 / 5154 RPM** at unchanged road speed. All forward gears are shorter than the preceding tune, including first, so wheel torque and shift frequency increase. Fifth's theoretical redline speed is about 131 mph; actual achievable top speed depends on power and drag.
+
+If using an assigned custom VehicleSpec asset, copy the five ratios above into its Forward Ratios list. Run `BaselineMatchesRequestedRedlineShiftSpeeds` and the existing PlayMode launch/lock checks. The numerical targets are verified independently of tire slip; Unity driving still needs validation.
+
+### High-speed FWD response
+
+The added axle-balance tuning is inactive up to **30 mph**, then blends smoothly to its full effect at **50 mph**. It reduces front lateral capacity relative to the rear, with additional front reduction under positive drive demand. The intent is steady understeer and more front-end push on power, while preserving the previous low-speed balance.
+
+Light-to-moderate service braking while the car actually decelerates partly relaxes that front bias and removes the extra rear grip margin. This allows left-foot braking with throttle still applied to tighten the line. The correction fades out under heavy braking and never adds yaw torque or changes velocity directly. Existing brake torques, gearing and steering limits remain unchanged.
+
+This is explicit handling calibration for the split tire model, not a complete physical combined-slip simulation. C# response checks cover low-speed identity, power-versus-coast ordering, and bounded braking correction. Full vehicle understeer and braking rotation need verification in Unity: compare a repeatable bend below 30 mph, above 40 mph on steady throttle, and with a gentle brake squeeze while holding throttle. F5 captures telemetry if the response is still wrong.
+
+### Corkscrew geometry correction
+
+Widened the Corkscrew bends after a full-mesh check found an inside-lane triangle tilted about 48 degrees. The revised road triangles stay below about 16 degrees in the numerical geometry check. Removed the 50 m wide runoff ribbon, which could fold across the driving surface at tight downhill corners. Separate narrow shoulders now reduce their inner-corner width according to curvature. Terrain cells around the road are conservatively lowered below the local road height to prevent uphill terrain triangles from obstructing a lower section.
+
+The circuit PlayMode test now casts through all circuit colliders across five lane positions, rather than checking only whether the asphalt collider exists. It detects dirt or shoulder triangles above the road. Restart Play mode after pulling so the procedural circuit rebuilds. This is a geometry correction; the vehicle tune is unchanged. Unity runtime verification is still required.
+
+### Stronger handling and gearing tune
+
+This iteration makes a deliberate, larger change after the first grip correction still felt too loose:
+
+- Tire force scale increases 12%, with a further 8% lateral stiffness adjustment. Longitudinal-force blending retains at least 90% of that lateral stiffness. Surface differences remain: dirt still has less grip than asphalt.
+- Steering travel decreases more strongly with speed: 33 degrees at rest, roughly 9.8 degrees at 20 m/s, and 5.2 degrees at 30 m/s. This is input sensitivity shaping for keyboard/gamepad, not yaw correction. Low-speed parking travel is retained.
+- Service brakes use 1000 Nm front / 320 Nm rear per wheel, about 76% nominal front bias. Total commanded torque is 7% lower than the previous tune, reducing rear locking tendency. Brake pressure still builds progressively and releases immediately. There is no hidden ABS; wheels can still lock.
+- Gear ratios have since been superseded by the requested redline-speed calibration above.
+
+These remain provisional gameplay calibration values, not verified factory tire or gearbox specifications. The split tire solver is approximate; passing automated checks does not establish realistic handling. C# checks exercise launches, lock, shifts and braking with estimated forward load transfer, plus steering-response and grip bounds. Unity corner behavior still requires Editor driving verification.
+
+The generated baseline picks up these defaults. If you assigned a custom VehicleSpec asset, update its ratios from the redline-speed section above, brake torques, tireGripScale (1.12), lateralGripScale (1.08), and steeringSpeedScale (13) in the Inspector. Existing tune assets are preserved. Run all PlayMode tests, then compare the same Laguna bend and braking point.
+
+### Laguna Seca reference circuit
+
+Press **F4** in the Game view, or open **Esc / Options** and click **DRIVE LAGUNA SECA**. The existing Rocko is placed at start/finish in neutral, facing the driving direction. F4 restarts there; **R / Create** returns to the garage and **F2 / D-pad up** returns to the measured straight. Controller driving bindings are unchanged. The circuit is generated once on first entry and reused on resets.
+
+This is a driveable **approximation**, not a laser-scanned or surveyed replica. Its closed centerline is scaled to **2.238 miles / 3601.712 m** and traced from the official racing-lines flyer. It includes the Andretti Hairpin, uphill section, Corkscrew, Rainey Curve, and final corner, with an estimated 54.86 m elevation range. The 11 m road width, detailed elevations, corner radii, runoff and surrounding hills are provisional. There is no calibrated camber, authentic pit complex, lap timer or track-limit enforcement. Do not compare its lap times to real-world records.
+
+The road is a continuous mesh with collision, edge markings, corner boards, painted curbs, dry runoff and surrounding terrain. F5 records the existing vehicle telemetry; standing-start timing is disabled away from the proving-ground strip. The HUD replaces strip results with circuit information.
+
+References: [official track information](https://weathertechraceway.com/pages/track-information) and [official racing-lines flyer](https://cdn.shopify.com/s/files/1/0678/1914/3354/files/WeatherTech_Raceway_Laguna_Seca_Racing_Lines_Flyer.pdf?v=1733112124). The flyer was used as a layout reference; its artwork is not included in the project. Generated geometry is original, with no official affiliation.
+
+Validation: numerical centerline checks for lap length, finite samples, spacing, elevation and plan shape were run outside Unity. Run **LagunaCircuitHasContinuousRoadAndLaunches** in PlayMode for road collision, spawn, launch, reset reuse and garage return. Unity execution and a full driving lap still require Editor verification.
+
+### Driving-feel tuning branch
+
+This pass preserves engine power, gearing, the shared drivetrain, and the native wheel keep-alive fix. Full brake torque is unchanged, but pedal pressure builds over 0.25 seconds with a progressive response curve. Release is immediate. Manual clutch release now moves through a smooth bite curve; depressing the clutch still removes the requested capacity immediately, subject to the existing fast pressure decay. Assist retains its tested launch controller.
+
+Cornering grip now decreases moderately as each tire uses longitudinal grip under acceleration or braking. This is a bounded stability approximation: PhysX still computes lateral force and suspension separately. It needs road testing for understeer, braking in corners, and recovery after lifting off. It is not yet a calibrated combined-slip tire model.
+
+Run all PlayMode tests, including `BrakePressureBuildsAndReleases`, then compare a gentle launch, a full-throttle launch, partial brake input on a controller, and the same bend coasting versus accelerating. Settings are provisional; brake rise rate, manual clutch release rate, and axle brake torques are exposed on the runtime vehicle specification. No measured stopping-distance or handling claims are made by the standalone checks.
+
 ### Experimental shared drivetrain solver
 
 The October 11 traces exposed feedback oscillation between independently integrated engine and WheelCollider speeds. Engine, clutch, wheel rotation, braking, and longitudinal tire forces now advance together in `LongitudinalDrivetrain.cs`. Clutch impulses are limited by friction capacity and act on both rotating sides in the same substep. The failed static-coupling controller and estimated chassis inertia correction have been removed.
@@ -33,32 +88,32 @@ The project uses Unity's **Built-in Render Pipeline**. Do not convert it to URP/
 
 ## Controls
 
-Controller labels below use Xbox names. PlayStation equivalents are Cross = A, Circle = B, Square = X, Triangle = Y, R1 = RB, and L1 = LB.
+Controller prompts default to DualSense button names. The underlying gamepad bindings are unchanged; other compatible controllers still work.
 
-| Action | Keyboard / mouse | Controller |
+| Action | Keyboard / mouse | DualSense |
 |---|---|---|
 | Walk | WASD | Left stick |
 | Look | Mouse | Right stick |
-| Enter / exit car | E | A |
-| Throttle | W | RT |
-| Service brake | S | LT |
-| Steer | A / D | Left stick X |
-| Gear up | Shift | RB |
-| Gear down | Ctrl | LB |
-| Disengage clutch | Hold C | Hold X |
-| Handbrake | Hold Space | Hold B |
-| Restart stalled engine | I | Y |
-| Reset outside car at garage | R | Back / Share |
+| Enter / exit car | E | R1 |
+| Throttle | W | R2 |
+| Service brake | S | L2 |
+| Steer | A / D | Left stick horizontal |
+| Gear up | Shift | Circle |
+| Gear down | Ctrl | Square |
+| Disengage clutch | Hold C | Hold L1 |
+| Handbrake | Hold Space | Hold Cross |
+| Restart stalled engine | I | Triangle |
+| Reset outside car at garage | R | Create |
 | Stage straight test, seated | F2 | D-pad up |
 | Toggle clutch assistance | F3 | D-pad left |
 | Start / stop CSV recording | F5 | D-pad right |
 | Toggle help | F1 | D-pad down |
-| Center view | V | Press right stick |
-| Pause / release mouse | Esc | Start / Options |
+| Center view | V | R3 (press right stick) |
+| Pause / release mouse | Esc | Options |
 
 **Manual transmission only:** the sequence is **R → N → 1 → 2 → 3 → 4 → 5**. There are no automatic gear changes. From neutral, Ctrl selects reverse. W is the accelerator in reverse as well; S always brakes.
 
-**Clutch assistance starts enabled.** It operates the clutch during launch and your requested shifts. For full clutch operation, press F3, hold C to select a gear, apply throttle, then release C. The digital keyboard clutch is smoothed but is still a binary input; controller X is also a button, not an analog pedal. The engine can stall. Over-rev downshifts and moving reverse selection are blocked as prototype usability guards.
+**Clutch assistance starts enabled.** It operates the clutch during launch and your requested shifts. For full clutch operation, press F3, hold C to select a gear, apply throttle, then release C. The digital keyboard clutch is smoothed but is still a binary input; controller L1 is also a button, not an analog pedal. The engine can stall. Over-rev downshifts and moving reverse selection are blocked as prototype usability guards.
 
 ## Included
 
