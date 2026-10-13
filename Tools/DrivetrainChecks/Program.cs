@@ -35,7 +35,7 @@ internal static class Program
         for (int i = 0; i < 4; i++)
         {
             model.NormalLoad[i] = Mass * 9.80665 * (i < 2 ? 0.60 : 0.40) / 2;
-            model.Grip[i] = grip;
+            model.Grip[i] = grip * 1.12;
             model.WheelInertia[i] = 0.5 * 16 * Radius * Radius;
             for (int j = 0; j < 4; j++) model.DirectionDot[i * 4 + j] = 1;
         }
@@ -121,8 +121,10 @@ internal static class Program
             pressure=Move(pressure,engagement,dt*(engagement<pressure?20:3));
             for (int i=0;i<4;i++)
             {
+                double frontLoad=0.60+0.16*brake;
+                model.NormalLoad[i]=Mass*9.80665*(i<2?frontLoad:1-frontLoad)/2;
                 model.ContactSpeed[i]=speed;
-                model.BrakeTorque[i]=brake*(i<2?1000:420);
+                model.BrakeTorque[i]=brake*(i<2?1000:320);
             }
             model.Step(dt,net,0.28,260*pressure,Ratio*direction,0.88,Mass,Radius);
             double impulse=0;
@@ -205,7 +207,7 @@ internal static class Program
         for(int i=0;i<4;i++) model.WheelOmega[i]=speed/Radius;
         for(int step=0;step<400;step++)
         {
-            double ratio=step<100?Ratio:2.080*3.667;
+            double ratio=step<100?Ratio:1.950*3.667;
             double capacity=step>=100 && step<124?0:260;
             for(int i=0;i<4;i++) model.ContactSpeed[i]=speed;
             model.Step(0.01,capacity==0?-20:80,0.28,capacity,ratio,0.88,Mass,Radius);
@@ -226,6 +228,10 @@ internal static class Program
     //
     private static void PedalAndGrip()
     {
+        Check(DrivingFeel.SteeringLimit(0,13)==33 && DrivingFeel.SteeringLimit(30,13)<6,
+            "Parking authority and reduced high-speed steering", false, 0, 0, 0);
+        Check(DrivingFeel.SteeringLimit(-20,13)==DrivingFeel.SteeringLimit(20,13),
+            "Reverse steering symmetry", false, 0, 0, 0);
         double previous = 0;
         for (int i = 0; i <= 100; i++)
         {
@@ -234,14 +240,14 @@ internal static class Program
             Check(bite >= previous && bite <= 1, "Monotonic bite", false, 0, x, bite);
             previous = bite;
             double lateral = DrivingFeel.LateralGrip(x * 3000, 3000);
-            Check(lateral >= 0.75 && lateral <= 1 && (x == 0 || lateral < 1),
+            Check(lateral >= 0.90 && lateral <= 1 && (x == 0 || lateral < 1),
                 "Bounded lateral authority", false, 0, x, lateral);
         }
         Check(DrivingFeel.ClutchBite(0) == 0 && DrivingFeel.ClutchBite(1) == 1,
             "Clutch endpoints", false, 0, 0, 0);
         Check(DrivingFeel.BrakeDemand(0) == 0 && DrivingFeel.BrakeDemand(1) == 1 && DrivingFeel.BrakeDemand(0.5) < 0.5,
             "Progressive brakes retain full authority", false, 0, 0, 0);
-        Check(DrivingFeel.LateralGrip(-4000, 3000) == 0.75 && DrivingFeel.LateralGrip(0, 0) == 0,
+        Check(DrivingFeel.LateralGrip(-4000, 3000) == 0.90 && DrivingFeel.LateralGrip(0, 0) == 0,
             "Grip saturation and no load", false, 0, 0, 0);
         Console.WriteLine("PASS progressive pedals and bounded lateral grip");
     }

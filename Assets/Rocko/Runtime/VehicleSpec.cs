@@ -18,7 +18,7 @@ namespace Rocko
         public float track = 1.39f;
         public float finalDrive = 3.667f;
         public float reverseRatio = 3.455f;
-        public float[] forwardRatios = { 3.455f, 2.080f, 1.390f, 1.065f, 0.850f };
+        public float[] forwardRatios = { 3.455f, 1.950f, 1.280f, 0.950f, 0.720f };
         public float drivelineEfficiency = 0.88f;
         public float dragArea = 0.62f;
         public float rollingCoefficient = 0.013f;
@@ -30,7 +30,11 @@ namespace Rocko
         [Min(0.1f)] public float brakeApplyRate = 4f;
         [Min(0.1f)] public float manualClutchReleaseRate = 3f;
         [Min(0f)] public float frontBrakeTorque = 1000f;
-        [Min(0f)] public float rearBrakeTorque = 420f;
+        [Min(0f)] public float rearBrakeTorque = 320f;
+        [Header("Provisional stable handling tune")]
+        [Range(0.5f, 1.5f)] public float tireGripScale = 1.12f;
+        [Range(0.5f, 1.5f)] public float lateralGripScale = 1.08f;
+        [Min(1f)] public float steeringSpeedScale = 13f;
         public float frontSpring = 26000f;
         public float rearSpring = 21000f;
         public float damper = 2700f;

@@ -27,10 +27,22 @@ namespace Rocko
         }
 
         //
+        // @description - Reduce steering travel progressively as road speed rises
+        // @param {double} speed - Signed road speed in metres per second
+        // @param {double} speedScale - Speed at which steering travel halves
+        // @return {double} - Maximum central steering angle in degrees
+        //
+        public static double SteeringLimit(double speed, double speedScale)
+        {
+            double normalized = speed / Math.Max(1, speedScale);
+            return Math.Max(4, 33 / (1 + normalized * normalized));
+        }
+
+        //
         // @description - Apply a bounded lateral-grip reduction for the split longitudinal/PhysX model
         // @param {double} longitudinalForce - Mean signed tire force in newtons
         // @param {double} peakForce - Available peak longitudinal force in newtons
-        // @return {double} - Lateral multiplier from 0.75 to one for a loaded tire; zero without load
+        // @return {double} - Lateral multiplier from 0.90 to one for a loaded tire; zero without load
         //
         public static double LateralGrip(double longitudinalForce, double peakForce)
         {
@@ -38,7 +50,7 @@ namespace Rocko
             double usage = Math.Min(1, Math.Abs(longitudinalForce) / peakForce);
             // 🚗 A strict friction-circle multiplier drove PhysX stiffness to zero.
             // This bounded approximation preserves steering authority during peak braking.
-            return 1 - 0.25 * usage * usage;
+            return 1 - 0.10 * usage * usage;
         }
     }
 }

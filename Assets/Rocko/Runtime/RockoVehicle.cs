@@ -167,7 +167,7 @@ namespace Rocko
                 wheels[i].motorTorque = NativeWheelKeepAliveTorque;
                 wheels[i].brakeTorque = 0;
                 drivetrain.NormalLoad[i] = grounded[i] ? Mathf.Max(0, contacts[i].force) : 0;
-                drivetrain.Grip[i] = grip;
+                drivetrain.Grip[i] = grip * spec.tireGripScale;
                 drivetrain.WheelInertia[i] = 0.5f * wheels[i].mass * spec.tireRadius * spec.tireRadius;
                 tireDirections[i] = grounded[i] ? contacts[i].forwardDir.normalized
                     : transform.TransformDirection(Quaternion.Euler(0, wheels[i].steerAngle, 0) * Vector3.forward);
@@ -224,7 +224,7 @@ namespace Rocko
                 // This is an approximation across the separate PhysX lateral step, not a full combined tire solver.
                 WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
                 double peakForce = drivetrain.NormalLoad[i] * drivetrain.Grip[i] * 1.03;
-                lateral.stiffness = (float)(drivetrain.Grip[i] * DrivingFeel.LateralGrip(
+                lateral.stiffness = (float)(drivetrain.Grip[i] * spec.lateralGripScale * DrivingFeel.LateralGrip(
                     drivetrain.ForceImpulse[i] / dt, peakForce));
                 wheels[i].sidewaysFriction = lateral;
                 if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);
@@ -249,7 +249,7 @@ namespace Rocko
         //
         private void ApplySteering()
         {
-            float angle = steering * Mathf.Lerp(33, 12, Mathf.Clamp01(Mathf.Abs(ForwardSpeed) / 45f));
+            float angle = steering * (float)DrivingFeel.SteeringLimit(ForwardSpeed, spec.steeringSpeedScale);
             if (Mathf.Abs(angle) < 0.01f) { wheels[0].steerAngle = wheels[1].steerAngle = 0; return; }
             float radius = spec.wheelbase / Mathf.Tan(Mathf.Abs(angle) * Mathf.Deg2Rad);
             float inner = Mathf.Atan(spec.wheelbase / (radius - spec.track / 2)) * Mathf.Rad2Deg;

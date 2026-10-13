@@ -1,14 +1,17 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
-### Grip and gear-spacing correction
+### Stronger handling and gearing tune
 
-The aggressive lateral friction-circle reduction has been replaced with a bounded blend: loaded tires retain at least 75% of their surface-scaled lateral stiffness under peak drive/braking force. This is a stability approximation for the split solver, not a claim of an accurate combined-slip tire model. No yaw correction, hidden ABS or steering assist is added.
+This iteration makes a deliberate, larger change after the first grip correction still felt too loose:
 
-Service brake torque is now 1000 Nm front / 420 Nm rear per wheel, shifting nominal front bias from 63.4% to 70.4% while retaining the same total torque. Rear load falls under braking, so less rear brake demand should reduce premature rear locking. Hard braking and excessive entry speed can still cause sliding.
+- Tire force scale increases 12%, with a further 8% lateral stiffness adjustment. Longitudinal-force blending retains at least 90% of that lateral stiffness. Surface differences remain: dirt still has less grip than asphalt.
+- Steering travel decreases more strongly with speed: 33 degrees at rest, roughly 9.8 degrees at 20 m/s, and 5.2 degrees at 30 m/s. This is input sensitivity shaping for keyboard/gamepad, not yaw correction. Low-speed parking travel is retained.
+- Service brakes use 1000 Nm front / 320 Nm rear per wheel, about 76% nominal front bias. Total commanded torque is 7% lower than the previous tune, reducing rear locking tendency. Brake pressure still builds progressively and releases immediately. There is no hidden ABS; wheels can still lock.
+- Ratios are **3.455 / 1.950 / 1.280 / 0.950 / 0.720**, with first gear and the 3.667 final drive unchanged. At a constant road speed, synchronized upshifts from 6800 RPM now target approximately **3838 / 4464 / 5047 / 5154 RPM**. Taller upper gears reduce wheel torque; this is not an engine power increase or a guaranteed top-speed increase.
 
-Provisional ratios are now **3.455 / 2.080 / 1.390 / 1.065 / 0.850**, with first gear and the 3.667 final drive unchanged. At 6800 RPM, synchronized upshifts at unchanged road speed target approximately **4094 / 4544 / 5210 / 5427 RPM** (previously 4169 / 4636 / 5317 / 5493). Actual transient RPM also depends on clutch slip, wheelspin and speed change. These are tuning estimates, not verified factory gearbox specifications.
+These remain provisional gameplay calibration values, not verified factory tire or gearbox specifications. The split tire solver is approximate; passing automated checks does not establish realistic handling. C# checks exercise launches, lock, shifts and braking with estimated forward load transfer, plus steering-response and grip bounds. Unity corner behavior still requires Editor driving verification.
 
-These defaults apply to the generated baseline. If you assigned a custom VehicleSpec asset, update its ratios and brake torques in the Inspector to try the same calibration; existing tune assets are preserved. Run all PlayMode checks, including `ModerateCornerBrakingRemainsStable`, then compare the same Laguna corner and braking point. Unity handling validation remains pending.
+The generated baseline picks up these defaults. If you assigned a custom VehicleSpec asset, update its ratios, brake torques, tireGripScale (1.12), lateralGripScale (1.08), and steeringSpeedScale (13) in the Inspector. Existing tune assets are preserved. Run all PlayMode tests, then compare the same Laguna bend and braking point.
 
 ### Laguna Seca reference circuit
 
