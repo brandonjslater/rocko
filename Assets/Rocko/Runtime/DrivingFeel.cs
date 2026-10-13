@@ -27,16 +27,18 @@ namespace Rocko
         }
 
         //
-        // @description - Reserve lateral grip after longitudinal tire force uses the friction budget
+        // @description - Apply a bounded lateral-grip reduction for the split longitudinal/PhysX model
         // @param {double} longitudinalForce - Mean signed tire force in newtons
         // @param {double} peakForce - Available peak longitudinal force in newtons
-        // @return {double} - Remaining lateral stiffness multiplier from zero to one
+        // @return {double} - Lateral multiplier from 0.75 to one for a loaded tire; zero without load
         //
         public static double LateralGrip(double longitudinalForce, double peakForce)
         {
             if (peakForce <= 0) return 0;
             double usage = Math.Min(1, Math.Abs(longitudinalForce) / peakForce);
-            return Math.Sqrt(Math.Max(0, 1 - usage * usage));
+            // 🚗 A strict friction-circle multiplier drove PhysX stiffness to zero.
+            // This bounded approximation preserves steering authority during peak braking.
+            return 1 - 0.25 * usage * usage;
         }
     }
 }

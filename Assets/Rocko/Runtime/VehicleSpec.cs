@@ -18,7 +18,7 @@ namespace Rocko
         public float track = 1.39f;
         public float finalDrive = 3.667f;
         public float reverseRatio = 3.455f;
-        public float[] forwardRatios = { 3.455f, 2.118f, 1.444f, 1.129f, 0.912f };
+        public float[] forwardRatios = { 3.455f, 2.080f, 1.390f, 1.065f, 0.850f };
         public float drivelineEfficiency = 0.88f;
         public float dragArea = 0.62f;
         public float rollingCoefficient = 0.013f;
@@ -29,8 +29,8 @@ namespace Rocko
         [Header("Provisional pedal feel calibration")]
         [Min(0.1f)] public float brakeApplyRate = 4f;
         [Min(0.1f)] public float manualClutchReleaseRate = 3f;
-        [Min(0f)] public float frontBrakeTorque = 900f;
-        [Min(0f)] public float rearBrakeTorque = 520f;
+        [Min(0f)] public float frontBrakeTorque = 1000f;
+        [Min(0f)] public float rearBrakeTorque = 420f;
         public float frontSpring = 26000f;
         public float rearSpring = 21000f;
         public float damper = 2700f;

@@ -1,5 +1,15 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Grip and gear-spacing correction
+
+The aggressive lateral friction-circle reduction has been replaced with a bounded blend: loaded tires retain at least 75% of their surface-scaled lateral stiffness under peak drive/braking force. This is a stability approximation for the split solver, not a claim of an accurate combined-slip tire model. No yaw correction, hidden ABS or steering assist is added.
+
+Service brake torque is now 1000 Nm front / 420 Nm rear per wheel, shifting nominal front bias from 63.4% to 70.4% while retaining the same total torque. Rear load falls under braking, so less rear brake demand should reduce premature rear locking. Hard braking and excessive entry speed can still cause sliding.
+
+Provisional ratios are now **3.455 / 2.080 / 1.390 / 1.065 / 0.850**, with first gear and the 3.667 final drive unchanged. At 6800 RPM, synchronized upshifts at unchanged road speed target approximately **4094 / 4544 / 5210 / 5427 RPM** (previously 4169 / 4636 / 5317 / 5493). Actual transient RPM also depends on clutch slip, wheelspin and speed change. These are tuning estimates, not verified factory gearbox specifications.
+
+These defaults apply to the generated baseline. If you assigned a custom VehicleSpec asset, update its ratios and brake torques in the Inspector to try the same calibration; existing tune assets are preserved. Run all PlayMode checks, including `ModerateCornerBrakingRemainsStable`, then compare the same Laguna corner and braking point. Unity handling validation remains pending.
+
 ### Laguna Seca reference circuit
 
 Press **F4** in the Game view, or open **Esc / Options** and click **DRIVE LAGUNA SECA**. The existing Rocko is placed at start/finish in neutral, facing the driving direction. F4 restarts there; **R / Create** returns to the garage and **F2 / D-pad up** returns to the measured straight. Controller driving bindings are unchanged. The circuit is generated once on first entry and reused on resets.
@@ -16,7 +26,7 @@ Validation: numerical centerline checks for lap length, finite samples, spacing,
 
 This pass preserves engine power, gearing, the shared drivetrain, and the native wheel keep-alive fix. Full brake torque is unchanged, but pedal pressure builds over 0.25 seconds with a progressive response curve. Release is immediate. Manual clutch release now moves through a smooth bite curve; depressing the clutch still removes the requested capacity immediately, subject to the existing fast pressure decay. Assist retains its tested launch controller.
 
-Cornering grip now decreases as each tire uses longitudinal grip under acceleration or braking. This is a longitudinal-priority friction-budget approximation: PhysX still computes lateral force and suspension separately. It needs road testing for understeer, braking in corners, and recovery after lifting off. It is not yet a calibrated combined-slip tire model.
+Cornering grip now decreases moderately as each tire uses longitudinal grip under acceleration or braking. This is a bounded stability approximation: PhysX still computes lateral force and suspension separately. It needs road testing for understeer, braking in corners, and recovery after lifting off. It is not yet a calibrated combined-slip tire model.
 
 Run all PlayMode tests, including `BrakePressureBuildsAndReleases`, then compare a gentle launch, a full-throttle launch, partial brake input on a controller, and the same bend coasting versus accelerating. Settings are provisional; brake rise rate, manual clutch release rate, and axle brake torques are exposed on the runtime vehicle specification. No measured stopping-distance or handling claims are made by the standalone checks.
 

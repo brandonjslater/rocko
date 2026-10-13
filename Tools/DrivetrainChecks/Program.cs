@@ -122,7 +122,7 @@ internal static class Program
             for (int i=0;i<4;i++)
             {
                 model.ContactSpeed[i]=speed;
-                model.BrakeTorque[i]=brake*(i<2?900:520);
+                model.BrakeTorque[i]=brake*(i<2?1000:420);
             }
             model.Step(dt,net,0.28,260*pressure,Ratio*direction,0.88,Mass,Radius);
             double impulse=0;
@@ -205,7 +205,7 @@ internal static class Program
         for(int i=0;i<4;i++) model.WheelOmega[i]=speed/Radius;
         for(int step=0;step<400;step++)
         {
-            double ratio=step<100?Ratio:2.118*3.667;
+            double ratio=step<100?Ratio:2.080*3.667;
             double capacity=step>=100 && step<124?0:260;
             for(int i=0;i<4;i++) model.ContactSpeed[i]=speed;
             model.Step(0.01,capacity==0?-20:80,0.28,capacity,ratio,0.88,Mass,Radius);
@@ -221,8 +221,8 @@ internal static class Program
     }
 
     //
-    // @description - Check pedal endpoints, monotonic bite, and combined grip limits
-    // @return {Void} - Throws if pedal authority or the normalized friction budget is broken
+    // @description - Check pedal endpoints, monotonic bite, and bounded lateral grip
+    // @return {Void} - Throws if pedal authority or lateral authority is lost
     //
     private static void PedalAndGrip()
     {
@@ -234,16 +234,16 @@ internal static class Program
             Check(bite >= previous && bite <= 1, "Monotonic bite", false, 0, x, bite);
             previous = bite;
             double lateral = DrivingFeel.LateralGrip(x * 3000, 3000);
-            Check(Math.Abs(x * x + lateral * lateral - 1) < 1e-10,
-                "Combined grip budget", false, 0, x, lateral);
+            Check(lateral >= 0.75 && lateral <= 1 && (x == 0 || lateral < 1),
+                "Bounded lateral authority", false, 0, x, lateral);
         }
         Check(DrivingFeel.ClutchBite(0) == 0 && DrivingFeel.ClutchBite(1) == 1,
             "Clutch endpoints", false, 0, 0, 0);
         Check(DrivingFeel.BrakeDemand(0) == 0 && DrivingFeel.BrakeDemand(1) == 1 && DrivingFeel.BrakeDemand(0.5) < 0.5,
             "Progressive brakes retain full authority", false, 0, 0, 0);
-        Check(DrivingFeel.LateralGrip(-4000, 3000) == 0 && DrivingFeel.LateralGrip(0, 0) == 0,
+        Check(DrivingFeel.LateralGrip(-4000, 3000) == 0.75 && DrivingFeel.LateralGrip(0, 0) == 0,
             "Grip saturation and no load", false, 0, 0, 0);
-        Console.WriteLine("PASS progressive pedals and combined grip budget");
+        Console.WriteLine("PASS progressive pedals and bounded lateral grip");
     }
 
     //

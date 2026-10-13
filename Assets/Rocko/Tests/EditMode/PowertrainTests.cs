@@ -89,6 +89,32 @@ namespace Rocko.Tests
         }
 
         //
+        // @description - Check modest upshift RPM drops and front-biased service brakes in the baseline
+        // @return {Void} - Verifies tune endpoints without changing first gear or final drive
+        //
+        [Test]
+        public void RevisedTunePreservesLaunchAndWidensUpperGearSpacing()
+        {
+            VehicleSpec spec=VehicleSpec.CreateBaseline();
+            try
+            {
+                Assert.That(spec.forwardRatios[0],Is.EqualTo(3.455f));
+                Assert.That(spec.finalDrive,Is.EqualTo(3.667f));
+                float[] previous={3.455f,2.118f,1.444f,1.129f,.912f};
+                for(int i=1;i<5;i++)
+                {
+                    float before=6800*previous[i]/previous[i-1];
+                    float after=6800*spec.Ratio(i+1)/spec.Ratio(i);
+                    Assert.That(after,Is.LessThan(before));
+                    Assert.That(before-after,Is.LessThan(150),"Keep the RPM-drop adjustment modest.");
+                }
+                Assert.That(spec.frontBrakeTorque+spec.rearBrakeTorque,Is.EqualTo(1420));
+                Assert.That(spec.frontBrakeTorque/(spec.frontBrakeTorque+spec.rearBrakeTorque),Is.InRange(.70f,.71f));
+            }
+            finally { Object.DestroyImmediate(spec); }
+        }
+
+        //
         // @description - Ensure the measured strip uses an exact international mile
         // @return {Void} - NUnit distance assertions
         //

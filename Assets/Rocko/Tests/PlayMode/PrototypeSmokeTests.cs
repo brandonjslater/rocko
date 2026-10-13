@@ -226,6 +226,49 @@ namespace Rocko.Tests
         }
 
         //
+        // @description - Brake through a moderate flat-pad turn without runaway yaw or rollover
+        // @return {IEnumerator} - Checks the actual shared drivetrain and PhysX lateral integration
+        //
+        [UnityTest]
+        public IEnumerator ModerateCornerBrakingRemainsStable()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            RockoVehicle car = driver.car;
+            driver.SetPaused(false);
+            car.controls.enabled=false;
+            try
+            {
+                car.ResetAt(new Vector3(92,.08f,125),Quaternion.identity);
+                car.occupied=true;car.clutchAssist=true;
+                car.controls.Throttle=car.controls.Brake=car.controls.Steer=car.controls.Clutch=0;
+                car.controls.Handbrake=false;
+                for(int i=0;i<100;i++) yield return new WaitForFixedUpdate();
+                car.RequestShift(1);car.controls.Throttle=1;
+                for(int i=0;i<400 && car.ForwardSpeed<9;i++) yield return new WaitForFixedUpdate();
+                Assert.That(car.ForwardSpeed,Is.GreaterThan(8),"Reach the test entry speed.");
+                car.controls.Throttle=0;car.controls.Steer=.12f;
+                car.controls.Clutch=1;car.controls.Brake=.6f;
+                float initialSpeed=car.ForwardSpeed;
+                for(int i=0;i<150;i++)
+                {
+                    yield return new WaitForFixedUpdate();
+                    Assert.That(Mathf.Abs(car.Body.angularVelocity.y),Is.LessThan(1.2f),"Moderate corner braking must not create runaway yaw.");
+                    Assert.That(Vector3.Dot(car.transform.up,Vector3.up),Is.GreaterThan(.9f));
+                    for(int w=0;w<4;w++)
+                        if(car.wheels[w].GetGroundHit(out WheelHit contact) && contact.force>100)
+                            Assert.That(car.wheels[w].sidewaysFriction.stiffness,Is.GreaterThanOrEqualTo(.74f),"Asphalt lateral authority must not collapse.");
+                }
+                Assert.That(car.SpeedMPH/2.2369363f,Is.LessThan(initialSpeed*.75f),"Stability must not come from disabling brakes.");
+            }
+            finally
+            {
+                driver.ResetGarage();car.controls.enabled=true;
+            }
+        }
+
+        //
         // @description - Load the real scene, verify on-foot spawn, then exercise its actual launch powertrain
         // @return {IEnumerator} - Unity coroutine performing physics smoke assertions
         //

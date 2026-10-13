@@ -220,7 +220,7 @@ namespace Rocko
             MaxDrivenSlip = Mathf.Max(Mathf.Abs((float)drivetrain.Slip[0]), Mathf.Abs((float)drivetrain.Slip[1]));
             for (int i = 0; i < 4; i++)
             {
-                // Longitudinal force gets priority; cornering capacity uses the remaining budget.
+                // Bounded grip blending avoids abruptly removing native lateral authority.
                 // This is an approximation across the separate PhysX lateral step, not a full combined tire solver.
                 WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
                 double peakForce = drivetrain.NormalLoad[i] * drivetrain.Grip[i] * 1.03;
