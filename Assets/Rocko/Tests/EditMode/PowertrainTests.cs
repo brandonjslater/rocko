@@ -89,25 +89,23 @@ namespace Rocko.Tests
         }
 
         //
-        // @description - Check larger upshift RPM drops and front-biased service brakes in the baseline
-        // @return {Void} - Verifies tune endpoints without changing first gear or final drive
+        // @description - Check requested redline shift speeds and unchanged front-biased brakes
+        // @return {Void} - Verifies road speeds with a synchronized clutch and no tire slip
         //
         [Test]
-        public void StableTunePreservesLaunchAndWidensUpperGearSpacing()
+        public void BaselineMatchesRequestedRedlineShiftSpeeds()
         {
             VehicleSpec spec=VehicleSpec.CreateBaseline();
             try
             {
-                Assert.That(spec.forwardRatios[0],Is.EqualTo(3.455f));
                 Assert.That(spec.finalDrive,Is.EqualTo(3.667f));
-                float[] previous={3.455f,2.080f,1.390f,1.065f,.850f};
-                for(int i=1;i<5;i++)
+                float[] targets={30,51,75,99};
+                for(int i=0;i<targets.Length;i++)
                 {
-                    float before=6800*previous[i]/previous[i-1];
-                    float after=6800*spec.Ratio(i+1)/spec.Ratio(i);
-                    Assert.That(after,Is.LessThan(before));
-                    Assert.That(before-after,Is.InRange(70,300),"Each shift should give a noticeable, bounded extra RPM drop.");
+                    float mph=spec.redlineRPM/spec.Ratio(i+1)*2*Mathf.PI*spec.tireRadius/60/0.44704f;
+                    Assert.That(mph,Is.EqualTo(targets[i]).Within(.01f),"Redline road speed in gear " + (i+1));
                 }
+                Assert.That(spec.forwardRatios[4]/spec.forwardRatios[3],Is.EqualTo(.720f/.950f).Within(.00001f));
                 Assert.That(spec.frontBrakeTorque+spec.rearBrakeTorque,Is.EqualTo(1320));
                 Assert.That(spec.frontBrakeTorque/(spec.frontBrakeTorque+spec.rearBrakeTorque),Is.InRange(.75f,.76f));
             }

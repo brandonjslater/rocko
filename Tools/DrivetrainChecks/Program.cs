@@ -3,7 +3,7 @@ using Rocko;
 
 internal static class Program
 {
-    private const double Mass = 1025, Radius = 0.288, Ratio = 3.455 * 3.667;
+    private const double Mass = 1025, Radius = 0.288, Ratio = 4.170148 * 3.667;
 
     //
     // @description - Run deterministic checks against the exact C# solver shipped in the game
@@ -80,6 +80,7 @@ internal static class Program
     private static void Run(bool assist, double dt, int direction, double grip)
     {
         var model = Create(grip);
+        double overallRatio=direction<0?3.455*3.667:Ratio;
         double speed=0, throttle=0, pressure=0, cruise=-1, maxGap=0, brakeStart=-1, coastStart=-1;
         double coastSpeed=0, brakePedal=0, releasedClutch=0;
         bool launching=true, sawLock=false, sawPedalRelease=false;
@@ -97,7 +98,7 @@ internal static class Program
             if (sinceCruise >= 3.5) pedal=1;
             throttle=Move(throttle,input,dt*4);
             double rpm=model.EngineOmega*30/Math.PI;
-            double shaft=(model.WheelOmega[0]+model.WheelOmega[1])*0.5*Ratio*direction*30/Math.PI;
+            double shaft=(model.WheelOmega[0]+model.WheelOmega[1])*0.5*overallRatio*direction*30/Math.PI;
             double fuel=time<0.24 || rpm>6800 ? 0 : throttle;
             double net=Curve(rpm)*fuel-(1-fuel)*(12+rpm*0.003);
             if (rpm<1000 && fuel<0.2) net+=Math.Clamp((900-rpm)*0.6+16,0,80);
@@ -106,7 +107,7 @@ internal static class Program
             double engagement=time<0.24 ? 0 : assist?1-pedal:DrivingFeel.ClutchBite(releasedClutch);
             if (assist && engagement>0)
             {
-                double roadRPM=Math.Abs(speed*Ratio)*30/(Math.PI*Radius);
+                double roadRPM=Math.Abs(speed*overallRatio)*30/(Math.PI*Radius);
                 if (roadRPM<1000 && shaft<1000) launching=true;
                 else if (roadRPM>=1800) launching=false;
                 if (launching)
@@ -127,12 +128,12 @@ internal static class Program
                 model.ContactSpeed[i]=speed;
                 model.BrakeTorque[i]=brake*(i<2?1000:320);
             }
-            model.Step(dt,net,0.28,260*pressure,Ratio*direction,0.88,Mass,Radius);
+            model.Step(dt,net,0.28,260*pressure,overallRatio*direction,0.88,Mass,Radius);
             double impulse=0;
             foreach(double value in model.ForceImpulse) impulse+=value;
             double rolling=-Math.Sign(speed)*Math.Min(0.013*Mass*9.80665,Math.Abs(speed)*Mass/dt);
             speed+=(impulse+(rolling-0.5*1.225*0.62*Math.Abs(speed)*speed)*dt)/Mass;
-            double gap=Math.Abs(model.EngineOmega-(model.WheelOmega[0]+model.WheelOmega[1])*0.5*Ratio*direction)*30/Math.PI;
+            double gap=Math.Abs(model.EngineOmega-(model.WheelOmega[0]+model.WheelOmega[1])*0.5*overallRatio*direction)*30/Math.PI;
             bool locked=pressure>0.95 && gap<80;
             sawLock |= locked;
             if (sinceCruise>=0.5 && sinceCruise<2.5)
@@ -208,7 +209,7 @@ internal static class Program
         for(int i=0;i<4;i++) model.WheelOmega[i]=speed/Radius;
         for(int step=0;step<400;step++)
         {
-            double ratio=step<100?Ratio:1.950*3.667;
+            double ratio=step<100?Ratio:2.453028*3.667;
             double capacity=step>=100 && step<124?0:260;
             for(int i=0;i<4;i++) model.ContactSpeed[i]=speed;
             model.Step(0.01,capacity==0?-20:80,0.28,capacity,ratio,0.88,Mass,Radius);

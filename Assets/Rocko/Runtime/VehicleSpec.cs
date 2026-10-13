@@ -18,7 +18,9 @@ namespace Rocko
         public float track = 1.39f;
         public float finalDrive = 3.667f;
         public float reverseRatio = 3.455f;
-        public float[] forwardRatios = { 3.455f, 1.950f, 1.280f, 0.950f, 0.720f };
+        // Redline road-speed targets: 30 / 51 / 75 / 99 mph at 6800 RPM, 0.288 m tires.
+        // Fifth preserves the previous fourth-to-fifth ratio fraction (0.720 / 0.950).
+        public float[] forwardRatios = { 4.170148f, 2.453028f, 1.668059f, 1.263681f, 0.957737f };
         public float drivelineEfficiency = 0.88f;
         public float dragArea = 0.62f;
         public float rollingCoefficient = 0.013f;

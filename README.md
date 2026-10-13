@@ -1,5 +1,13 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Requested redline shift speeds
+
+The baseline now targets **30 / 51 / 75 / 99 mph** at the existing **6800 RPM** limiter in gears 1–4. Ratios are **4.170148 / 2.453028 / 1.668059 / 1.263681 / 0.957737**, using the existing 3.667 final drive and 0.288 m tire radius. Fifth preserves the previous fourth-to-fifth RPM-drop fraction. Reverse is unchanged.
+
+These are calculated road speeds with the clutch locked and no tire slip, not automatic shift triggers. Shifting remains manual. Upshifts at those speeds settle near **4000 / 4624 / 5152 / 5154 RPM** at unchanged road speed. All forward gears are shorter than the preceding tune, including first, so wheel torque and shift frequency increase. Fifth's theoretical redline speed is about 131 mph; actual achievable top speed depends on power and drag.
+
+If using an assigned custom VehicleSpec asset, copy the five ratios above into its Forward Ratios list. Run `BaselineMatchesRequestedRedlineShiftSpeeds` and the existing PlayMode launch/lock checks. The numerical targets are verified independently of tire slip; Unity driving still needs validation.
+
 ### High-speed FWD response
 
 The added axle-balance tuning is inactive up to **30 mph**, then blends smoothly to its full effect at **50 mph**. It reduces front lateral capacity relative to the rear, with additional front reduction under positive drive demand. The intent is steady understeer and more front-end push on power, while preserving the previous low-speed balance.
@@ -21,11 +29,11 @@ This iteration makes a deliberate, larger change after the first grip correction
 - Tire force scale increases 12%, with a further 8% lateral stiffness adjustment. Longitudinal-force blending retains at least 90% of that lateral stiffness. Surface differences remain: dirt still has less grip than asphalt.
 - Steering travel decreases more strongly with speed: 33 degrees at rest, roughly 9.8 degrees at 20 m/s, and 5.2 degrees at 30 m/s. This is input sensitivity shaping for keyboard/gamepad, not yaw correction. Low-speed parking travel is retained.
 - Service brakes use 1000 Nm front / 320 Nm rear per wheel, about 76% nominal front bias. Total commanded torque is 7% lower than the previous tune, reducing rear locking tendency. Brake pressure still builds progressively and releases immediately. There is no hidden ABS; wheels can still lock.
-- Ratios are **3.455 / 1.950 / 1.280 / 0.950 / 0.720**, with first gear and the 3.667 final drive unchanged. At a constant road speed, synchronized upshifts from 6800 RPM now target approximately **3838 / 4464 / 5047 / 5154 RPM**. Taller upper gears reduce wheel torque; this is not an engine power increase or a guaranteed top-speed increase.
+- Gear ratios have since been superseded by the requested redline-speed calibration above.
 
 These remain provisional gameplay calibration values, not verified factory tire or gearbox specifications. The split tire solver is approximate; passing automated checks does not establish realistic handling. C# checks exercise launches, lock, shifts and braking with estimated forward load transfer, plus steering-response and grip bounds. Unity corner behavior still requires Editor driving verification.
 
-The generated baseline picks up these defaults. If you assigned a custom VehicleSpec asset, update its ratios, brake torques, tireGripScale (1.12), lateralGripScale (1.08), and steeringSpeedScale (13) in the Inspector. Existing tune assets are preserved. Run all PlayMode tests, then compare the same Laguna bend and braking point.
+The generated baseline picks up these defaults. If you assigned a custom VehicleSpec asset, update its ratios from the redline-speed section above, brake torques, tireGripScale (1.12), lateralGripScale (1.08), and steeringSpeedScale (13) in the Inspector. Existing tune assets are preserved. Run all PlayMode tests, then compare the same Laguna bend and braking point.
 
 ### Laguna Seca reference circuit
 
