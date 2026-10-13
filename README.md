@@ -1,5 +1,23 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Open the door and move inside
+
+Look at either door, the hood, or the hatch and **left-click (Mouse 1)** on PC or press **R1** on DualSense. The center dot shows your interaction target. These panels open and close on animated hinges; a simple engine bay and cargo floor are visible underneath.
+
+To drive:
+
+1. Open the **left driver door**.
+2. Toggle crouch with **C / L3**.
+3. Use **WASD / left stick** to move through the doorway yourself, toward the driver seat.
+4. Look down at the seat and **left-click / R1** to sit. Clicking from outside cannot move you into the car.
+5. Look at the door to close it. Your existing driving controls apply once seated.
+
+To get out, stop, look away from the doors and **left-click / R1** to get up inside the cabin. Open the door and move outside yourself. Toggle crouch again once clear of the roof. C remains the clutch key while driving; L3 crouches only while on foot.
+
+Garage reset closes the panels and puts you outside. Straight/circuit staging preserves whether you were seated; staging on foot still requires manual entry. Walking collision uses a separate cabin floor, seats, roof, doorway and moving doors. The coarse vehicle chassis excludes the player; cabin collision only contacts the player on reserved layer 30. Vehicle mass, inertia, gearing, grip and driving input response are unchanged.
+
+Panels are animated rather than physics-driven hinges; there is no visible player body or general object grabbing yet. Open panels do not collide with scenery. Unity PlayMode tests exercise actual CharacterController movement against a closed door and through an open one, outside seating rejection, roof clearance, manual exit, hinge directions and reset. Run these alongside the existing driving tests; Unity runtime validation is still required.
+
 ### Controller steering and triggers
 
 Controller steering now has an 8% horizontal deadzone applied once, a 1.6 exponent for fine corrections near center, and its own physics-step response: 4.5 full-scale units/second into a turn and 8 toward center. Reversals unwind first and use the remaining timestep to build opposite lock. Full stick still reaches the existing speed-dependent steering limit.
@@ -104,7 +122,8 @@ Controller prompts default to DualSense button names. The underlying gamepad bin
 |---|---|---|
 | Walk | WASD | Left stick |
 | Look | Mouse | Right stick |
-| Enter / exit car | E | R1 |
+| Interact / sit / get up | Left-click (Mouse 1) | R1 |
+| Crouch on foot | C | L3 |
 | Throttle | W | R2 |
 | Service brake | S | L2 |
 | Steer | A / D | Left stick horizontal |

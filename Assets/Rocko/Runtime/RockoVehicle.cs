@@ -334,6 +334,7 @@ namespace Rocko
         //
         public void ResetAt(Vector3 position, Quaternion rotation)
         {
+            GetComponent<CarAccess>()?.ResetClosed();
             if (Body == null) Body = GetComponent<Rigidbody>();
             Body.linearVelocity = Vector3.zero;
             Body.angularVelocity = Vector3.zero;

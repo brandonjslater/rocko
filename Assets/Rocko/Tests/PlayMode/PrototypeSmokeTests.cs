@@ -191,6 +191,8 @@ namespace Rocko.Tests
             FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
             RockoVehicle car = driver.car;
             driver.StageCircuit();
+            Assert.That(driver.Driving, Is.False, "Staging on foot must not bypass entry.");
+            car.occupied = true; // This test supplies a seated driving fixture for circuit physics.
             car.controls.enabled = false;
             try
             {

@@ -73,11 +73,12 @@ namespace Rocko
             }
             Fill(new Rect(420, 675, 760, 38), ink);
             Text(new Rect(435, 683, 730, 25), string.IsNullOrEmpty(car.Notice) ? driver.Prompt : car.Notice, body, Color.white);
+            if (!driver.Paused && (!driver.Driving || car.SpeedMPH < 1.1f))
+                Fill(new Rect(797, 447, 6, 6), mint);
             if (!driver.Driving)
             {
-                Fill(new Rect(796, 446, 8, 8), mint);
                 Fill(new Rect(28, 804, 730, 68), ink);
-                Text(new Rect(48, 818, 690, 24), "FIRST PERSON ONLY  ·  WALK → ENTER → DRIVE", heading, mint);
+                Text(new Rect(48, 818, 690, 24), "FIRST PERSON ONLY  ·  OPEN DOOR → CROUCH → MOVE INSIDE → SIT", heading, mint);
                 Text(new Rect(48, 849, 690, 20), "R / Create resets to garage     ·     F2 / D-pad up stages the car at the straight", small, Color.white);
             }
             if (driver.ShowHelp || driver.Paused) DrawHelp();
@@ -123,7 +124,7 @@ namespace Rocko
             string[] lines = {
                 "Walk / throttle / brake     WASD                         Left stick / R2 / L2",
                 "Look around                    Mouse                         Right stick",
-                "Enter / exit                       E                                   R1",
+                "Interact / sit / get up       Mouse 1                         R1",
                 "Gear up / down               Shift / Ctrl                  Circle / Square",
                 "Clutch / handbrake          C / Space                    L1 / Cross",
                 "Restart stalled engine     I                                    Triangle",
@@ -131,7 +132,7 @@ namespace Rocko
                 "Stage straight run            F2                                D-pad up",
                 "Toggle clutch assistance  F3                                D-pad left",
                 "Record telemetry CSV      F5                                D-pad right",
-                "Help / center view            F1 / V                          D-pad down / R3"
+                "On foot: crouch                 C                                   L3"
             };
             for (int i = 0; i < lines.Length; i++) Text(new Rect(480, 184 + i * 29, 638, 28), lines[i], body, Color.white);
             Text(new Rect(480, 516, 636, 47), "Manual gears only. Start in neutral. Shift once for 1st; Ctrl once for R. Clutch assistance is on by default. Specs still require handling validation.", small, mint);

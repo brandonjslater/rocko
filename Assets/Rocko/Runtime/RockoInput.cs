@@ -21,7 +21,7 @@ namespace Rocko
         public float Throttle, Brake, Steer, Clutch;
         public Vector2 Move, Look;
         public bool Up, Down, Interact, Reset, Straight, Restart, Assist, Log, Pause, Handbrake;
-        public bool Help, Recenter, Circuit;
+        public bool Help, Recenter, Circuit, Crouch;
 
         //
         // @description - Sample keyboard, mouse, and standardized gamepad controls without legacy axes
@@ -51,7 +51,8 @@ namespace Rocko
                 (g == null ? Vector2.zero : g.rightStick.ReadValue() * (110f * Time.unscaledDeltaTime));
             Up = (k != null && (k.leftShiftKey.wasPressedThisFrame || k.rightShiftKey.wasPressedThisFrame)) || (g != null && g.buttonEast.wasPressedThisFrame);
             Down = (k != null && (k.leftCtrlKey.wasPressedThisFrame || k.rightCtrlKey.wasPressedThisFrame)) || (g != null && g.buttonWest.wasPressedThisFrame);
-            Interact = (k != null && k.eKey.wasPressedThisFrame) || (g != null && g.rightShoulder.wasPressedThisFrame);
+            Interact = (m != null && m.leftButton.wasPressedThisFrame) || (g != null && g.rightShoulder.wasPressedThisFrame);
+            Crouch = (k != null && k.cKey.wasPressedThisFrame) || (g != null && g.leftStickButton.wasPressedThisFrame);
             Handbrake = (k != null && k.spaceKey.isPressed) || (g != null && g.buttonSouth.isPressed);
             Reset = (k != null && k.rKey.wasPressedThisFrame) || (g != null && g.selectButton.wasPressedThisFrame);
             Straight = (k != null && k.f2Key.wasPressedThisFrame) || (g != null && g.dpad.up.wasPressedThisFrame);

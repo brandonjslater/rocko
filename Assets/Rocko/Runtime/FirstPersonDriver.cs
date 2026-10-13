@@ -11,10 +11,14 @@ namespace Rocko
         public Camera view;
         public TestTelemetry telemetry;
         public bool Paused { get; private set; }
-        public bool ShowHelp { get; private set; } = true;
+        public bool ShowHelp { get; private set; }
         public bool Driving { get { return car.occupied; } }
         public string Prompt { get; private set; }
         public bool OnCircuit { get; private set; }
+        public bool Crouched { get; private set; }
+        private Vector3 seatedFeet;
+        private const float StandingHeight = 1.75f, CrouchedHeight = 0.7f;
+        private CarAccess access;
         private LagunaSeca circuit;
         private CharacterController capsule;
         private float yaw = 90, pitch = 12, verticalSpeed;
@@ -25,9 +29,11 @@ namespace Rocko
         //
         private void Start()
         {
+            access = car.GetComponent<CarAccess>();
             capsule = GetComponent<CharacterController>();
-            capsule.height = 1.75f; capsule.radius = 0.25f;
-            capsule.center = new Vector3(0, 0.875f, 0); capsule.stepOffset = 0.25f;
+            gameObject.layer = CarAccess.PlayerLayer;
+            capsule.height = StandingHeight; capsule.radius = 0.19f;
+            capsule.center = new Vector3(0, 0.875f, 0); capsule.stepOffset = 0.32f;
             capsule.slopeLimit = 48; capsule.skinWidth = 0.025f;
             transform.position = ProvingGround.GaragePlayer;
             view.transform.SetParent(transform, false);
@@ -44,13 +50,13 @@ namespace Rocko
             if (controls.Pause) SetPaused(!Paused);
             if (controls.Help) ShowHelp = !ShowHelp;
             if (Paused) return;
-            if (controls.Circuit) { StageCircuit(); return; }
             if (controls.Reset) { ResetGarage(); return; }
+            if (controls.Circuit) { StageCircuit(); return; }
             if (controls.Straight)
             {
                 OnCircuit = false;
                 car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
-                Enter(); telemetry.ResetRun(); return;
+                StagePlayer(); telemetry.ResetRun(); return;
             }
             if (controls.Log) telemetry.ToggleRecording();
             if (controls.Recenter) { yaw = Driving ? 0 : transform.eulerAngles.y; pitch = 4; }
@@ -59,22 +65,43 @@ namespace Rocko
             if (Driving)
             {
                 yaw = Mathf.Clamp(yaw, -135, 135);
-                Prompt = !car.EngineRunning ? "I / Triangle  ·  Restart engine" : car.Gear == 0
-                    ? "NEUTRAL · Shift / Circle for 1st · Ctrl / Square for reverse · W / R2 to accelerate"
-                    : car.SpeedMPH < 1.1f ? "W / R2  ·  Accelerate     E / R1  ·  Exit Rocko"
-                    : "Stop to exit  ·  V / R-stick  ·  Center view";
-                if (controls.Interact && car.SpeedMPH < 1.1f) TryExit();
+                Collider target = access.FindTarget(view, transform);
+                CarPanel panel = target == null ? null : target.GetComponentInParent<CarPanel>();
+                if (car.SpeedMPH >= 1.1f) Prompt = "Stop to open a door or exit · V / R3 · Center view";
+                else if (panel == access.driverDoor || panel == access.passengerDoor)
+                {
+                    Prompt = "Mouse 1 / R1 · " + (panel.IsOpen ? "Close " : "Open ") + panel.Label;
+                    if (controls.Interact) panel.SetOpen(!panel.IsOpen);
+                }
+                else
+                {
+                    Prompt = "Mouse 1 / R1 · Get up · Then move out through the open door";
+                    if (controls.Interact) TryExit();
+                }
             }
             else
             {
+                if (controls.Crouch) SetCrouched(!Crouched);
                 transform.rotation = Quaternion.Euler(0, yaw, 0);
                 if (capsule.isGrounded && verticalSpeed < 0) verticalSpeed = -2;
                 verticalSpeed += Physics.gravity.y * Time.deltaTime;
-                Vector3 move = (transform.right * controls.Move.x + transform.forward * controls.Move.y) * 3.2f;
+                Vector3 move = (transform.right * controls.Move.x + transform.forward * controls.Move.y) * (Crouched ? 1.1f : 3.2f);
                 capsule.Move((move + Vector3.up * verticalSpeed) * Time.deltaTime);
-                bool nearDoor = Vector3.Distance(transform.position, car.transform.TransformPoint(new Vector3(-1.1f, 0, -0.25f))) < 2.1f;
-                Prompt = nearDoor ? "E / R1  ·  Enter Rocko" : "Walk to the driver's door  ·  WASD / left stick";
-                if (nearDoor && controls.Interact && car.SpeedMPH < 1.1f) Enter();
+                Collider target = access.FindTarget(view, transform);
+                CarPanel panel = target == null ? null : target.GetComponentInParent<CarPanel>();
+                Prompt = "Mouse 1 / R1 · Interact    C / L3 · Crouch    WASD / left stick · Move";
+                if (car.SpeedMPH >= 1.1f) Prompt = "Wait for Rocko to stop";
+                else if (panel != null)
+                {
+                    Prompt = "Mouse 1 / R1 · " + (panel.IsOpen ? "Close " : "Open ") + panel.Label;
+                    if (controls.Interact) panel.SetOpen(!panel.IsOpen);
+                }
+                else if (target == access.seatTarget)
+                {
+                    Prompt = access.CanEnter(transform.position) ? "Mouse 1 / R1 · Sit in driver seat"
+                        : "Open driver door · C / L3 to crouch · Move inside to the driver seat";
+                    if (controls.Interact) TryEnter();
+                }
             }
             if (transform.position.y < -20 || car.transform.position.y < -20) ResetGarage();
         }
@@ -104,38 +131,107 @@ namespace Rocko
         }
 
         //
-        // @description - Find a grounded, unobstructed exit position on either side of the car
-        // @return {Void} - Returns to walking or reports blocked exits
+        // @description - Sit only after the player has moved inside to the driver seat
+        // @return {bool} - Whether driving controls became active
+        //
+        public bool TryEnter()
+        {
+            if (!access.CanEnter(transform.position)) return false;
+            seatedFeet = car.transform.InverseTransformPoint(transform.position);
+            Enter();
+            return true;
+        }
+
+        //
+        // @description - Get up inside the cabin; the player must move through the doorway manually
+        // @return {Void} - Returns control to a crouched walking character at the seat
         //
         private void TryExit()
         {
-            foreach (float side in new[] { -1f, 1f })
+            if (car.SpeedMPH >= 1.1f) return;
+            Vector3 feet = car.transform.TransformPoint(seatedFeet);
+            if (StandingBlocked(feet, CrouchedHeight))
             {
-                Vector3 p = car.transform.TransformPoint(new Vector3(side * 1.6f, 1.5f, -0.2f));
-                if (!Physics.Raycast(p, Vector3.down, out RaycastHit hit, 4f, ~0, QueryTriggerInteraction.Ignore)) continue;
-                if (hit.collider.GetComponentInParent<RockoVehicle>() != null) continue;
-                Vector3 feet = hit.point + Vector3.up * 0.06f;
-                if (Physics.CheckCapsule(feet + Vector3.up * 0.3f, feet + Vector3.up * 1.48f, 0.26f, ~0, QueryTriggerInteraction.Ignore)) continue;
-                car.occupied = false;
-                transform.position = feet;
-                yaw = car.transform.eulerAngles.y + (side < 0 ? 90 : -90); pitch = 12;
-                view.transform.SetParent(transform, false); view.transform.localPosition = new Vector3(0, 1.63f, 0);
-                capsule.enabled = true; verticalSpeed = 0;
+                car.SetNotice("No room to get up from the seat.");
                 return;
             }
-            car.SetNotice("Both exits are obstructed. Move to a clear, level area.");
+            car.occupied = false;
+            transform.position = feet;
+            yaw = car.transform.eulerAngles.y + yaw;
+            transform.rotation = Quaternion.Euler(0, yaw, 0);
+            view.transform.SetParent(transform, false);
+            Crouched = true; ApplyPosture();
+            capsule.enabled = true; verticalSpeed = 0;
+        }
+
+        //
+        // @description - Toggle crouching without allowing standing through a roof or ceiling
+        // @param {bool} crouched - Desired posture
+        // @return {bool} - Whether the posture was applied
+        //
+        public bool SetCrouched(bool crouched)
+        {
+            if (Driving) return false;
+            if (!crouched && StandingBlocked(transform.position, StandingHeight)) return false;
+            Crouched = crouched; ApplyPosture();
+            return true;
+        }
+
+        //
+        // @description - Check body clearance while excluding the player's own capsule and coarse vehicle chassis
+        // @param {Vector3} feet - Desired feet position
+        // @param {float} height - Desired capsule height
+        // @return {bool} - Whether a solid object prevents this posture
+        //
+        private bool StandingBlocked(Vector3 feet, float height)
+        {
+            foreach (Collider hit in Physics.OverlapCapsule(feet + Vector3.up * 0.21f,
+                feet + Vector3.up * (height - 0.19f), 0.18f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (hit == capsule || access.IsChassis(hit)) continue;
+                return true;
+            }
+            return false;
+        }
+
+        //
+        // @description - Apply a compact crouch that fits the car and a matching eye height
+        // @return {Void} - Updates walking body and camera without horizontal movement
+        //
+        private void ApplyPosture()
+        {
+            capsule.height = Crouched ? CrouchedHeight : StandingHeight;
+            capsule.center = new Vector3(0, capsule.height / 2, 0);
+            capsule.stepOffset = Crouched ? 0.4f : 0.32f;
+            view.transform.localPosition = new Vector3(0, Crouched ? 0.62f : 1.63f, 0);
+        }
+
+        //
+        // @description - Preserve a seated driver when staging, otherwise place the walker beside the car
+        // @return {Void} - Prevents test-location shortcuts bypassing door entry
+        //
+        private void StagePlayer()
+        {
+            if (Driving) { Enter(); return; }
+            Crouched = false; ApplyPosture();
+            capsule.enabled = false;
+            transform.position = car.transform.TransformPoint(new Vector3(-1.6f, 0.1f, -0.2f));
+            yaw = car.transform.eulerAngles.y + 90; pitch = 12; verticalSpeed = 0;
+            transform.rotation = Quaternion.Euler(0, yaw, 0);
+            view.transform.SetParent(transform, false); view.transform.localPosition = new Vector3(0, 1.63f, 0);
+            capsule.enabled = true;
         }
 
         //
         // @description - Build Laguna Seca on demand and stage the existing car at start/finish
-        // @return {Void} - Seats the player at the circuit with neutral selected
+        // @return {Void} - Stages car and player, preserving whether the player was already seated
         //
         public void StageCircuit()
         {
             if (circuit == null) circuit = new GameObject("Laguna Seca / approximate reference layout").AddComponent<LagunaSeca>();
             car.ResetAt(circuit.StartPosition, circuit.StartRotation);
             OnCircuit = true;
-            Enter();
+            StagePlayer();
             telemetry.ResetRun();
             SetPaused(false);
             car.SetNotice("Laguna Seca · approximate layout · F4 reset · R / Create return to garage");
@@ -147,6 +243,7 @@ namespace Rocko
         //
         public void ResetGarage()
         {
+            Crouched = false; ApplyPosture();
             OnCircuit = false;
             car.occupied = false;
             car.ResetAt(ProvingGround.GarageCar, Quaternion.identity);

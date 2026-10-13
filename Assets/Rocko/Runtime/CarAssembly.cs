@@ -38,25 +38,44 @@ namespace Rocko
             chassis.center = new Vector3(0, 0.44f, 0); chassis.size = new Vector3(1.24f, 0.38f, 3.85f);
             BoxCollider cabin = root.AddComponent<BoxCollider>();
             cabin.center = new Vector3(0, 0.94f, -0.48f); cabin.size = new Vector3(1.30f, 0.53f, 1.4f);
+            chassis.excludeLayers = 1 << CarAccess.PlayerLayer;
+            cabin.excludeLayers = 1 << CarAccess.PlayerLayer;
+            CarAccess.WalkBox(t, new Vector3(0, 0.26f, -0.3f), new Vector3(1.60f, 0.06f, 2.65f));
+            CarAccess.WalkBox(t, new Vector3(0, 1.255f, -0.415f), new Vector3(1.26f, 0.05f, 0.99f));
+            CarAccess.WalkBox(t, new Vector3(0, 0.55f, 1.35f), new Vector3(1.6f, 0.5f, 1.3f));
+            CarAccess.WalkBox(t, new Vector3(0, 0.7f, -1.1f), new Vector3(1.60f, 0.8f, 0.55f));
+            CarAccess.WalkBox(t, new Vector3(0, 0.81f, 0.43f), new Vector3(1.45f, 0.18f, 0.40f));
+            foreach (float side in new[] { -1f, 1f })
+            {
+                CarAccess.WalkBox(t, new Vector3(side * 0.81f, 0.26f, 0.075f), new Vector3(0.06f, 0.06f, 1.25f));
+                CarAccess.WalkBox(t, new Vector3(side * 0.77f, 0.76f, -0.73f), new Vector3(0.10f, 0.94f, 0.25f));
+                CarAccess.WalkBox(t, new Vector3(side * 0.77f, 0.76f, 0.73f), new Vector3(0.10f, 0.94f, 0.12f));
+            }
             Geometry.Box("Cabin floor", t, new Vector3(0, 0.26f, -0.3f), new Vector3(1.28f, 0.06f, 2.65f), black);
 
+            CarAccess access = root.AddComponent<CarAccess>();
+            access.car = car;
+            Transform hood = new GameObject("Hood hinge").transform; hood.SetParent(t, false);
+            Transform hatch = new GameObject("Hatch hinge").transform; hatch.SetParent(t, false);
             // Side panels have actual open wheel arches, rather than wheels buried in a box. 🚗
             for (int side = -1; side <= 1; side += 2)
             {
                 float x = side * 0.8125f;
+                Transform door = new GameObject(side < 0 ? "Driver door hinge" : "Passenger door hinge").transform;
+                door.SetParent(t, false);
                 for (int j = 0; j < 160; j++)
                 {
                     float z0 = -2.0f + j * 0.025f, z1 = z0 + 0.025f;
                     float low0 = ArchHeight(z0), low1 = ArchHeight(z1);
                     float top0 = BeltHeight(z0), top1 = BeltHeight(z1);
-                    Geometry.Quad("Body panel", t, new Vector3(x, low0, z0), new Vector3(x, top0, z0),
+                    Geometry.Quad("Body panel", z0 >= -0.551f && z1 <= 0.701f ? door : t, new Vector3(x, low0, z0), new Vector3(x, top0, z0),
                         new Vector3(x, top1, z1), new Vector3(x, low1, z1), blue);
                 }
-                Geometry.Box("Door rub strip", t, new Vector3(x * 1.004f, 0.59f, 0), new Vector3(0.023f, 0.065f, 1.65f), black);
-                Geometry.Box("Door handle", t, new Vector3(x * 1.01f, 0.735f, -0.48f), new Vector3(0.035f, 0.035f, 0.16f), black);
+                Geometry.Box("Door rub strip", door, new Vector3(x * 1.004f, 0.59f, 0.075f), new Vector3(0.023f, 0.065f, 1.24f), black);
+                Geometry.Box("Door handle", door, new Vector3(x * 1.01f, 0.735f, -0.48f), new Vector3(0.035f, 0.035f, 0.16f), black);
                 Geometry.Box("Side skirt", t, new Vector3(side * 0.8f, 0.20f, 0), new Vector3(0.045f, 0.075f, 1.62f), blue);
-                Geometry.Box("Mirror shell", t, new Vector3(side * 0.87f, 0.84f, 0.48f), new Vector3(0.16f, 0.12f, 0.23f), blue);
-                Geometry.Box("Mirror insert (static)", t, new Vector3(side * 0.87f, 0.84f, 0.359f), new Vector3(0.12f, 0.09f, 0.006f), silver);
+                Geometry.Box("Mirror shell", door, new Vector3(side * 0.87f, 0.84f, 0.48f), new Vector3(0.16f, 0.12f, 0.23f), blue);
+                Geometry.Box("Mirror insert (static)", door, new Vector3(side * 0.87f, 0.84f, 0.359f), new Vector3(0.12f, 0.09f, 0.006f), silver);
                 Vector3 a = new Vector3(side * 0.765f, 0.79f, 0.70f);
                 Vector3 b = new Vector3(side * 0.615f, 1.24f, 0.05f);
                 Vector3 c = new Vector3(side * 0.615f, 1.24f, -0.88f);
@@ -64,18 +83,27 @@ namespace Rocko
                 Geometry.Strut("A pillar", t, a, b, 0.055f, blue);
                 Geometry.Strut("Roof rail", t, b, c, 0.06f, blue);
                 Geometry.Strut("C pillar", t, c, d, 0.09f, blue);
-                Geometry.Strut("Window sill", t, a, d, 0.045f, black);
+                Vector3 lowerB = new Vector3(side * 0.765f, 0.795f, -0.55f);
+                Vector3 upperB = new Vector3(side * 0.615f, 1.24f, -0.55f);
+                Geometry.Strut("Door window sill", door, a, lowerB, 0.045f, black);
+                Geometry.Strut("Rear window sill", t, lowerB, d, 0.045f, black);
                 Geometry.Strut("B pillar", t, new Vector3(side * 0.765f, 0.795f, -0.55f), new Vector3(side * 0.615f, 1.24f, -0.55f), 0.055f, black);
-                Geometry.Quad("Side glass", t, a, b, c, d, glass);
-                Geometry.Box("Interior door card", t, new Vector3(side * 0.73f, 0.58f, -0.1f), new Vector3(0.04f, 0.30f, 1.20f), black);
+                Geometry.Quad("Door glass", door, a, b, upperB, lowerB, glass);
+                Geometry.Quad("Rear quarter glass", t, lowerB, upperB, c, d, glass);
+                Geometry.Box("Interior door card", door, new Vector3(side * 0.78f, 0.58f, 0.075f), new Vector3(0.04f, 0.30f, 1.20f), black);
+                // 🛠️ Door panels and trim move together, leaving a visible doorway.
+                CarPanel panel = CarPanel.Create(door, new Vector3(x, 0.77f, 0.70f),
+                    Vector3.up, -side * 68f, side < 0 ? "driver door" : "passenger door",
+                    new Vector3(x, 0.73f, 0.075f), new Vector3(0.12f, 0.96f, 1.25f));
+                if (side < 0) access.driverDoor = panel; else access.passengerDoor = panel;
             }
-            Geometry.Quad("Sloping bonnet", t, new Vector3(-0.8f, 0.79f, 0.70f), new Vector3(0.8f, 0.79f, 0.70f), new Vector3(0.8f, 0.635f, 2.0f), new Vector3(-0.8f, 0.635f, 2.0f), blue);
+            Geometry.Quad("Sloping bonnet", hood, new Vector3(-0.8f, 0.79f, 0.70f), new Vector3(0.8f, 0.79f, 0.70f), new Vector3(0.8f, 0.635f, 2.0f), new Vector3(-0.8f, 0.635f, 2.0f), blue);
             Geometry.Quad("Windscreen", t, new Vector3(-0.765f, 0.79f, 0.70f), new Vector3(0.765f, 0.79f, 0.70f), new Vector3(0.615f, 1.24f, 0.05f), new Vector3(-0.615f, 1.24f, 0.05f), glass);
             Geometry.Box("Roof", t, new Vector3(0, 1.255f, -0.415f), new Vector3(1.26f, 0.05f, 0.99f), blue);
-            Geometry.Quad("Hatch glass", t, new Vector3(-0.615f, 1.24f, -0.88f), new Vector3(0.615f, 1.24f, -0.88f), new Vector3(0.77f, 0.80f, -1.89f), new Vector3(-0.77f, 0.80f, -1.89f), glass);
-            Geometry.Box("Hatch lip", t, new Vector3(0, 0.77f, -1.95f), new Vector3(1.58f, 0.09f, 0.15f), blue);
-            Geometry.Box("Rear spoiler", t, new Vector3(0, 0.93f, -1.68f), new Vector3(1.62f, 0.045f, 0.20f), black);
-            foreach (float x in new[] { -0.67f, 0.67f }) Geometry.Box("Spoiler pedestal", t, new Vector3(x, 0.875f, -1.69f), new Vector3(0.07f, 0.10f, 0.12f), black);
+            Geometry.Quad("Hatch glass", hatch, new Vector3(-0.615f, 1.24f, -0.88f), new Vector3(0.615f, 1.24f, -0.88f), new Vector3(0.77f, 0.80f, -1.89f), new Vector3(-0.77f, 0.80f, -1.89f), glass);
+            Geometry.Box("Hatch lip", hatch, new Vector3(0, 0.77f, -1.95f), new Vector3(1.58f, 0.09f, 0.15f), blue);
+            Geometry.Box("Rear spoiler", hatch, new Vector3(0, 0.93f, -1.68f), new Vector3(1.62f, 0.045f, 0.20f), black);
+            foreach (float x in new[] { -0.67f, 0.67f }) Geometry.Box("Spoiler pedestal", hatch, new Vector3(x, 0.875f, -1.69f), new Vector3(0.07f, 0.10f, 0.12f), black);
             Geometry.Box("Front fascia", t, new Vector3(0, 0.525f, 1.985f), new Vector3(1.60f, 0.22f, 0.03f), black);
             Geometry.Box("Rear panel", t, new Vector3(0, 0.575f, -1.985f), new Vector3(1.60f, 0.34f, 0.03f), blue);
             foreach (float z in new[] { -1.99f, 1.99f }) Geometry.Box("Black bumper", t, new Vector3(0, 0.35f, z), new Vector3(1.625f, 0.11f, 0.07f), black);
@@ -93,7 +121,21 @@ namespace Rocko
             Geometry.Strut("Wiper", t, new Vector3(-0.45f, 0.805f, 0.68f), new Vector3(0.06f, 0.82f, 0.66f), 0.012f, black);
             Geometry.Strut("Wiper", t, new Vector3(0.1f, 0.805f, 0.68f), new Vector3(0.61f, 0.82f, 0.66f), 0.012f, black);
 
+            Geometry.Box("Engine block", t, new Vector3(0, 0.48f, 1.28f), new Vector3(0.75f, 0.36f, 0.62f), black);
+            Geometry.Box("Valve cover", t, new Vector3(0, 0.69f, 1.25f), new Vector3(0.64f, 0.09f, 0.28f), silver);
+            Geometry.Box("Battery", t, new Vector3(-0.58f, 0.52f, 0.94f), new Vector3(0.22f, 0.24f, 0.30f), black);
+            Geometry.Box("Cargo floor", t, new Vector3(0, 0.43f, -1.72f), new Vector3(1.35f, 0.06f, 0.45f), cloth);
+            access.hood = CarPanel.Create(hood, new Vector3(0, 0.79f, 0.70f), Vector3.right, -65f,
+                "hood", new Vector3(0, 0.71f, 1.35f), new Vector3(1.6f, 0.12f, 1.3f));
+            access.hatch = CarPanel.Create(hatch, new Vector3(0, 1.24f, -0.88f), Vector3.right, 75f,
+                "hatch", new Vector3(0, 0.86f, -1.70f), new Vector3(1.5f, 0.15f, 0.48f));
             BuildCabin(car, black, cloth, silver);
+            GameObject seatTarget = new GameObject("Driver seat interaction");
+            seatTarget.transform.SetParent(t, false);
+            seatTarget.transform.localPosition = new Vector3(-0.35f, 0.61f, -0.39f);
+            BoxCollider seatTrigger = seatTarget.AddComponent<BoxCollider>();
+            seatTrigger.isTrigger = true; seatTrigger.size = new Vector3(0.5f, 0.46f, 0.50f);
+            access.seatTarget = seatTrigger;
             car.wheels = new WheelCollider[4]; car.wheelVisuals = new Transform[4];
             for (int i = 0; i < 4; i++)
             {
@@ -102,6 +144,7 @@ namespace Rocko
                 w.transform.SetParent(t, false);
                 w.transform.localPosition = new Vector3(side * spec.track / 2, spec.tireRadius + 0.11f, i < 2 ? spec.wheelbase / 2 : -spec.wheelbase / 2);
                 WheelCollider wheel = w.AddComponent<WheelCollider>();
+                wheel.excludeLayers = 1 << CarAccess.PlayerLayer;
                 wheel.radius = spec.tireRadius; wheel.mass = 16; wheel.suspensionDistance = 0.22f;
                 wheel.forceAppPointDistance = 0.12f; wheel.wheelDampingRate = 0.3f;
                 JointSpring spring = wheel.suspensionSpring;
@@ -168,6 +211,8 @@ namespace Rocko
             Geometry.Box("Shift knob", t, new Vector3(0.10f, 0.60f, -0.04f), new Vector3(0.055f, 0.055f, 0.055f), black);
             foreach (float x in new[] { -0.35f, 0.35f })
             {
+                CarAccess.WalkBox(t, new Vector3(x, 0.40f, -0.39f), new Vector3(0.49f, 0.13f, 0.49f));
+                CarAccess.WalkBox(t, new Vector3(x, 0.66f, -0.70f), new Vector3(0.49f, 0.5f, 0.10f));
                 Geometry.Box("Front seat cushion", t, new Vector3(x, 0.40f, -0.39f), new Vector3(0.49f, 0.13f, 0.49f), cloth);
                 GameObject back = Geometry.Box("Front seat back", t, new Vector3(x, 0.64f, -0.66f), new Vector3(0.49f, 0.47f, 0.13f), cloth);
                 back.transform.localRotation = Quaternion.Euler(-12, 0, 0);
