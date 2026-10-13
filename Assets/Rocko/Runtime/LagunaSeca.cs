@@ -22,8 +22,8 @@ namespace Rocko
             new Vector3(1187,14,529), new Vector3(1185,16,507), new Vector3(1144,20,461),
             new Vector3(1035,29,384), new Vector3(951,34,327), new Vector3(924,34,320),
             new Vector3(810,41,317), new Vector3(687,49,335), new Vector3(600,55,346),
-            new Vector3(551,59.86f,350), new Vector3(533,59.86f,360),
-            new Vector3(532,56.86f,380), new Vector3(518,53.86f,394), new Vector3(468,48.86f,414),
+            new Vector3(551,59.86f,350), new Vector3(525,59.86f,365),
+            new Vector3(527,56.86f,392), new Vector3(508,53.86f,412), new Vector3(460,48.86f,431),
             new Vector3(408,41.88f,434), new Vector3(365,33,460), new Vector3(347,26.6f,486),
             new Vector3(350,25,507), new Vector3(400,20,566), new Vector3(461,14,632),
             new Vector3(473,12,652), new Vector3(465,11,672), new Vector3(395,10,734),
@@ -79,7 +79,9 @@ namespace Rocko
             for(int i=0;i<Points.Length;i++) Points[i]=new Vector3(Points[i].x*factor+3000,Points[i].y,Points[i].z*factor);
             Length=0;
             for(int i=0;i<Points.Length;i++) Length+=Vector3.Distance(Points[i],Points[(i+1)%Points.Length]);
-            Strip("Continuous runoff",-25,25,-.08f,sand,true,.60f);
+            // Wide offset ribbons fold across the road at tight downhill corners.
+            // Keep shoulders local and adapt their width to each corner's curvature.
+            Shoulders();
             Strip("Closed asphalt circuit",-5.5f,5.5f,0,asphalt,true,1);
             Strip("Left edge line",-5.35f,-5.20f,.015f,white,false,1);
             Strip("Right edge line",5.20f,5.35f,.015f,white,false,1);
@@ -171,6 +173,37 @@ namespace Rocko
         }
 
         //
+        // @description - Build narrow shoulders whose inner-corner width cannot fold over the road
+        // @return {Void} - Adds separate left and right shoulder meshes
+        //
+        private void Shoulders()
+        {
+            for(int side=-1;side<=1;side+=2)
+            {
+                var vertices=new Vector3[Points.Length*2];var triangles=new int[Points.Length*6];
+                for(int i=0;i<Points.Length;i++)
+                {
+                    int previous=(i+Points.Length-1)%Points.Length,next=(i+1)%Points.Length;
+                    Vector3 right=Vector3.Cross(Vector3.up,Direction(i)).normalized;
+                    Vector3 previousRight=Vector3.Cross(Vector3.up,Direction(previous)).normalized;
+                    Vector3 nextRight=Vector3.Cross(Vector3.up,Direction(next)).normalized;
+                    Vector3 travel=Points[next]-Points[previous];travel.y=0;
+                    float contraction=-Vector3.Dot((nextRight-previousRight)*side,travel)/travel.sqrMagnitude;
+                    float outer=contraction>0 ? Mathf.Min(8.5f, .98f/contraction) : 8.5f;
+                    outer=Mathf.Max(5.5f,outer);
+                    Vector3 inner=Points[i]+right*side*5.5f-Vector3.up*.02f;
+                    Vector3 edge=Points[i]+right*side*outer-Vector3.up*.12f;
+                    vertices[i*2]=side<0?edge:inner;vertices[i*2+1]=side<0?inner:edge;
+                    int n=i*2,k=next*2,t=i*6;
+                    triangles[t]=n;triangles[t+1]=k;triangles[t+2]=n+1;
+                    triangles[t+3]=n+1;triangles[t+4]=k;triangles[t+5]=k+1;
+                }
+                GameObject shoulder=Geometry.Mesh("Narrow shoulder "+side,transform,vertices,triangles,sand,true);
+                RoadSurface surface=shoulder.AddComponent<RoadSurface>();surface.label="Laguna shoulder";surface.grip=.6f;surface.rollingResistance=.04f;
+            }
+        }
+
+        //
         // @description - Build a surrounding dry hillside mesh below the road and runoff
         // @return {Void} - Adds a collidable terrain surface
         //
@@ -190,6 +223,22 @@ namespace Rocko
                 }
                 p.y=y-5-Mathf.Sqrt(best)*.03f;vertices[z*(count+1)+x]=p;
                 if(x<count&&z<count){int n=z*(count+1)+x;triangles.AddRange(new[]{n,n+count+1,n+1,n+1,n+count+1,n+count+2});}
+            }
+            // Lower every cell that can touch the road corridor. Checking only the nearest
+            // centerline height misses upper-hill triangles spanning a lower section of road.
+            float cellX=(max.x-min.x+300)/count,cellZ=(max.z-min.z+300)/count;
+            float clearanceRadius=9+Mathf.Sqrt(cellX*cellX+cellZ*cellZ);
+            foreach(Vector3 point in Points)
+            {
+                int x0=Mathf.Max(0,Mathf.FloorToInt((point.x-clearanceRadius-(min.x-150))/cellX));
+                int x1=Mathf.Min(count,Mathf.CeilToInt((point.x+clearanceRadius-(min.x-150))/cellX));
+                int z0=Mathf.Max(0,Mathf.FloorToInt((point.z-clearanceRadius-(min.z-150))/cellZ));
+                int z1=Mathf.Min(count,Mathf.CeilToInt((point.z+clearanceRadius-(min.z-150))/cellZ));
+                for(int z=z0;z<=z1;z++) for(int x=x0;x<=x1;x++)
+                {
+                    int index=z*(count+1)+x;
+                    vertices[index].y=Mathf.Min(vertices[index].y,point.y-.5f);
+                }
             }
             GameObject ground=Geometry.Mesh("Estimated surrounding hills",transform,vertices,triangles.ToArray(),sand,true);
             RoadSurface surface=ground.AddComponent<RoadSurface>();surface.label="Dry hillside";surface.grip=.5f;surface.rollingResistance=.05f;

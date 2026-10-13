@@ -200,11 +200,32 @@ namespace Rocko.Tests
                 Assert.That(track.Length, Is.EqualTo(3601.712f).Within(0.2f));
                 MeshCollider road = track.transform.Find("Closed asphalt circuit").GetComponent<MeshCollider>();
                 Physics.SyncTransforms();
+                Vector3[] roadVertices=road.sharedMesh.vertices;
+                int[] roadTriangles=road.sharedMesh.triangles;
+                for(int t=0;t<roadTriangles.Length;t+=3)
+                {
+                    Vector3 a=roadVertices[roadTriangles[t]], b=roadVertices[roadTriangles[t+1]], c=roadVertices[roadTriangles[t+2]];
+                    Assert.That(Vector3.Cross(b-a,c-a).normalized.y,Is.GreaterThan(.9f),
+                        "Excessively steep or folded driving triangle " + t/3);
+                }
                 for (int i=0;i<track.Points.Length;i+=10)
                 {
                     Vector3 point=track.Points[i];
                     Assert.That(road.Raycast(new Ray(point+Vector3.up*2,Vector3.down),out RaycastHit hit,3), Is.True, "Road collision missing at sample " + i);
                     Assert.That(hit.normal.y, Is.GreaterThan(.85f), "Unexpected road grade at sample " + i);
+                    // Query the scene, not just the asphalt collider: runoff/terrain can obstruct it.
+                    Vector3 across=Vector3.Cross(Vector3.up,track.Direction(i)).normalized;
+                    foreach(float offset in new[]{-4.8f,-2.4f,0f,2.4f,4.8f})
+                    {
+                        Vector3 lane=point+across*offset;
+                        RaycastHit[] hits=Physics.RaycastAll(lane+Vector3.up*80,Vector3.down,100);
+                        foreach(RaycastHit obstruction in hits)
+                        {
+                            if(!obstruction.collider.transform.IsChildOf(track.transform)) continue;
+                            Assert.That(obstruction.point.y, Is.LessThanOrEqualTo(lane.y+.08f),
+                                "Track mesh obstructs lane at sample " + i + ", offset " + offset + ": " + obstruction.collider.name);
+                        }
+                    }
                 }
                 Assert.That(Vector3.Distance(track.Points[0],track.Points[track.Points.Length-1]), Is.LessThan(2));
                 for(int i=0;i<100;i++) yield return new WaitForFixedUpdate();

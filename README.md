@@ -1,5 +1,19 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### High-speed FWD response
+
+The added axle-balance tuning is inactive up to **30 mph**, then blends smoothly to its full effect at **50 mph**. It reduces front lateral capacity relative to the rear, with additional front reduction under positive drive demand. The intent is steady understeer and more front-end push on power, while preserving the previous low-speed balance.
+
+Light-to-moderate service braking while the car actually decelerates partly relaxes that front bias and removes the extra rear grip margin. This allows left-foot braking with throttle still applied to tighten the line. The correction fades out under heavy braking and never adds yaw torque or changes velocity directly. Existing brake torques, gearing and steering limits remain unchanged.
+
+This is explicit handling calibration for the split tire model, not a complete physical combined-slip simulation. C# response checks cover low-speed identity, power-versus-coast ordering, and bounded braking correction. Full vehicle understeer and braking rotation need verification in Unity: compare a repeatable bend below 30 mph, above 40 mph on steady throttle, and with a gentle brake squeeze while holding throttle. F5 captures telemetry if the response is still wrong.
+
+### Corkscrew geometry correction
+
+Widened the Corkscrew bends after a full-mesh check found an inside-lane triangle tilted about 48 degrees. The revised road triangles stay below about 16 degrees in the numerical geometry check. Removed the 50 m wide runoff ribbon, which could fold across the driving surface at tight downhill corners. Separate narrow shoulders now reduce their inner-corner width according to curvature. Terrain cells around the road are conservatively lowered below the local road height to prevent uphill terrain triangles from obstructing a lower section.
+
+The circuit PlayMode test now casts through all circuit colliders across five lane positions, rather than checking only whether the asphalt collider exists. It detects dirt or shoulder triangles above the road. Restart Play mode after pulling so the procedural circuit rebuilds. This is a geometry correction; the vehicle tune is unchanged. Unity runtime verification is still required.
+
 ### Stronger handling and gearing tune
 
 This iteration makes a deliberate, larger change after the first grip correction still felt too loose:

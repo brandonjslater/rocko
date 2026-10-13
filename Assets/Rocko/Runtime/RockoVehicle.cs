@@ -224,7 +224,12 @@ namespace Rocko
                 // This is an approximation across the separate PhysX lateral step, not a full combined tire solver.
                 WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
                 double peakForce = drivetrain.NormalLoad[i] * drivetrain.Grip[i] * 1.03;
-                lateral.stiffness = (float)(drivetrain.Grip[i] * spec.lateralGripScale * DrivingFeel.LateralGrip(
+                double frontCapacity = (drivetrain.NormalLoad[0]*drivetrain.Grip[0] +
+                    drivetrain.NormalLoad[1]*drivetrain.Grip[1])*1.03;
+                double driveUsage = Mathf.Max(0, AxleTorqueNm) /
+                    System.Math.Max(1, frontCapacity*spec.tireRadius);
+                double axleBalance = DrivingFeel.FwdBalance(i<2, ForwardSpeed, driveUsage, brake, -LongitudinalG);
+                lateral.stiffness = (float)(drivetrain.Grip[i] * spec.lateralGripScale * axleBalance * DrivingFeel.LateralGrip(
                     drivetrain.ForceImpulse[i] / dt, peakForce));
                 wheels[i].sidewaysFriction = lateral;
                 if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);

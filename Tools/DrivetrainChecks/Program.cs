@@ -20,6 +20,7 @@ internal static class Program
         Shift();
         Limits();
         PedalAndGrip();
+        FwdCornerBalance();
         Console.WriteLine("PASS: shared C# drivetrain checks. Unity suspension/cornering integration is not exercised here.");
     }
 
@@ -250,6 +251,34 @@ internal static class Program
         Check(DrivingFeel.LateralGrip(-4000, 3000) == 0.90 && DrivingFeel.LateralGrip(0, 0) == 0,
             "Grip saturation and no load", false, 0, 0, 0);
         Console.WriteLine("PASS progressive pedals and bounded lateral grip");
+    }
+
+    //
+    // @description - Check low-speed preservation and high-speed FWD axle response ordering
+    // @return {Void} - Verifies response bounds, not full Unity vehicle yaw dynamics
+    //
+    private static void FwdCornerBalance()
+    {
+        foreach(bool front in new[]{true,false})
+            foreach(double brake in new[]{0.0,0.2,1.0})
+                Check(DrivingFeel.FwdBalance(front,13.4112,1,brake,.3)==1,
+                    "Low-speed balance unchanged",false,0,0,0);
+        double coast=DrivingFeel.FwdBalance(true,25,0,0,0);
+        double power=DrivingFeel.FwdBalance(true,25,1,0,0);
+        double trail=DrivingFeel.FwdBalance(true,25,1,.2,.3);
+        double rear=DrivingFeel.FwdBalance(false,25,1,0,0);
+        double rearTrail=DrivingFeel.FwdBalance(false,25,1,.2,.3);
+        Check(power<coast && coast<rear,"Powered front saturates before rear",false,0,0,power);
+        Check(trail/rearTrail>power/rear,"Light braking reduces understeer bias",false,0,0,trail);
+        Check(DrivingFeel.FwdBalance(true,25,1,.2,0)==power,
+            "Brake correction requires actual deceleration",false,0,0,0);
+        Check(DrivingFeel.FwdBalance(true,25,1,1,.3)==power,
+            "Heavy braking does not grant extra rotation correction",false,0,0,0);
+        for(double speed=0;speed<=60;speed+=.5)
+            Check(DrivingFeel.FwdBalance(true,speed,1,.2,.3)>=.7 &&
+                DrivingFeel.FwdBalance(false,speed,1,.2,.3)>=1,
+                "Grip remains bounded",false,0,speed,0);
+        Console.WriteLine("PASS FWD balance: low-speed unchanged, power understeer, bounded trail-brake response");
     }
 
     //
