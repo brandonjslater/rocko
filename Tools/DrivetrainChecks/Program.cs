@@ -21,7 +21,43 @@ internal static class Program
         Limits();
         PedalAndGrip();
         FwdCornerBalance();
+        ControllerChecks();
         Console.WriteLine("PASS: shared C# drivetrain checks. Unity suspension/cornering integration is not exercised here.");
+    }
+
+    // @description - Check analog precision, simultaneous pedals and steering recovery at multiple tick rates
+    // @return {Void} - Throws if controller response violates its contract
+    private static void ControllerChecks()
+    {
+        if (ControllerResponse.Shape(0.07, 0.08, 1.6) != 0 ||
+            ControllerResponse.Shape(1, 0.08, 1.6) != 1 ||
+            ControllerResponse.Shape(-1, 0.08, 1.6) != -1)
+            throw new Exception("Controller deadzone/endpoints failed");
+        double previous = 0;
+        for (int i = 0; i <= 100; i++)
+        {
+            double value = ControllerResponse.Shape(i / 100.0, 0.08, 1.6);
+            if (value < previous || Math.Abs(value + ControllerResponse.Shape(-i / 100.0, 0.08, 1.6)) > 1e-12)
+                throw new Exception("Controller monotonicity/symmetry failed");
+            previous = value;
+        }
+        if (ControllerResponse.Shape(0.5, 0.08, 1.6) >= 0.4 ||
+            ControllerResponse.Shape(0.5, 0.02, 1.2) <= 0 ||
+            ControllerResponse.Shape(0.5, 0.02, 1) <= 0)
+            throw new Exception("Fine control or simultaneous pedals failed");
+        foreach (double dt in new[] { 0.005, 0.01, 0.02 })
+        {
+            double steering = 1;
+            for (int i = 0; i < (int)Math.Round(0.2 / dt); i++)
+                steering = ControllerResponse.Steering(steering, -1, dt, 4.5, 8);
+            if (Math.Abs(steering - (-0.3375)) > 1e-9)
+                throw new Exception("Steering reversal depends on tick rate");
+            double centered = 1;
+            for (int i = 0; i < (int)Math.Round(0.2 / dt); i++)
+                centered = ControllerResponse.Steering(centered, 0, dt, 4.5, 8);
+            if (centered != 0) throw new Exception("Steering does not center promptly");
+        }
+        Console.WriteLine("Controller: deadzone, endpoints, symmetry, precision, pedals and tick-independent reversal PASS");
     }
 
     //

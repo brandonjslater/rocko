@@ -124,9 +124,9 @@ namespace Rocko
             float dt = Time.fixedDeltaTime;
             float inputThrottle = occupied ? controls.Throttle : 0;
             float brakeInput = occupied ? Mathf.Clamp01(controls.Brake) : 0;
-            // 🚗 Build pedal pressure over 0.25 seconds; releasing the pedal removes brakes immediately.
+            // Build pedal pressure using the active input response; releasing removes brakes immediately.
             brakePedal = brakeInput < brakePedal ? brakeInput
-                : Mathf.MoveTowards(brakePedal, brakeInput, dt * spec.brakeApplyRate);
+                : Mathf.MoveTowards(brakePedal, brakeInput, dt * (controls.ControllerBrake ? controls.brakeApplyRate : spec.brakeApplyRate));
             float brake = (float)DrivingFeel.BrakeDemand(brakePedal);
             float releaseTarget = occupied ? 1 - Mathf.Clamp01(controls.Clutch) : 0;
             releasedClutch = releaseTarget < releasedClutch ? releaseTarget
@@ -134,8 +134,14 @@ namespace Rocko
             // A parked chassis can sleep; player input must resume wheel simulation.
             if (occupied && (inputThrottle > 0.01f || brake > 0.01f ||
                 Mathf.Abs(controls.Steer) > 0.01f || Shifting)) Body.WakeUp();
-            throttle = Mathf.MoveTowards(throttle, inputThrottle, dt * 4f);
-            steering = Mathf.MoveTowards(steering, occupied ? controls.Steer : 0, dt * (Mathf.Abs(ForwardSpeed) < 5 ? 2.3f : 1.25f));
+            float throttleRate = controls.ControllerThrottle
+                ? (inputThrottle < throttle ? controls.throttleReleaseRate : controls.throttleApplyRate) : 4f;
+            throttle = Mathf.MoveTowards(throttle, inputThrottle, dt * throttleRate);
+            steering = controls.ControllerSteering
+                ? (float)ControllerResponse.Steering(steering, occupied ? controls.Steer : 0, dt,
+                    controls.steeringApplyRate, controls.steeringUnwindRate)
+                : Mathf.MoveTowards(steering, occupied ? controls.Steer : 0,
+                    dt * (Mathf.Abs(ForwardSpeed) < 5 ? 2.3f : 1.25f));
             if (Shifting)
             {
                 shiftTime -= dt;

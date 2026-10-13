@@ -1,5 +1,15 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Controller steering and triggers
+
+Controller steering now has an 8% horizontal deadzone applied once, a 1.6 exponent for fine corrections near center, and its own physics-step response: 4.5 full-scale units/second into a turn and 8 toward center. Reversals unwind first and use the remaining timestep to build opposite lock. Full stick still reaches the existing speed-dependent steering limit.
+
+R2 uses a 2% deadzone and mild 1.2 curve, with faster application/release. L2 uses the same deadzone with a linear input curve before the existing progressive brake-force curve; pressure builds faster and releases immediately. Both triggers work independently for left-foot braking. Keyboard response, button bindings, gearing and tire/vehicle settings are unchanged.
+
+Tune the **Controller response** fields on the runtime **RockoInput** component in the Inspector. Play-mode Inspector edits are temporary. Defaults live in `RockoInput.cs`. Start by comparing small corrections above 30 mph, releasing the stick, a quick direction change, and holding R2 while gently squeezing L2. Lower Steering Exponent toward 1 for more center sensitivity; lower Steering Apply Rate for slower turn-in.
+
+The standalone C# checks cover response curves and timestep-independent steering recovery alongside drivetrain regressions. Unity device integration and driving feel still require Editor testing.
+
 ### Requested redline shift speeds
 
 The baseline now targets **30 / 51 / 75 / 99 mph** at the existing **6800 RPM** limiter in gears 1–4. Ratios are **4.170148 / 2.453028 / 1.668059 / 1.263681 / 0.957737**, using the existing 3.667 final drive and 0.288 m tire radius. Fifth preserves the previous fourth-to-fifth RPM-drop fraction. Reverse is unchanged.
