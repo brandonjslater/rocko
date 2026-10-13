@@ -90,7 +90,6 @@ namespace Rocko
             for (int j = 0; j < 5; j++) Geometry.Box("Grille slat", t, new Vector3(0, 0.46f + j * 0.032f, 2.012f), new Vector3(0.58f, 0.01f, 0.008f), silver);
             Geometry.Ring("Grille roundel", t, new Vector3(0, 0.535f, 2.023f), 0.04f, 0.005f, silver, 24);
             Geometry.Box("Rear plate", t, new Vector3(0, 0.59f, -2.016f), new Vector3(0.43f, 0.15f, 0.012f), white);
-            Geometry.Label("ROCKO", t, new Vector3(0, 0.59f, -2.025f), 0.075f).GetComponent<TextMesh>().color = Color.black;
             Geometry.Strut("Wiper", t, new Vector3(-0.45f, 0.805f, 0.68f), new Vector3(0.06f, 0.82f, 0.66f), 0.012f, black);
             Geometry.Strut("Wiper", t, new Vector3(0.1f, 0.805f, 0.68f), new Vector3(0.61f, 0.82f, 0.66f), 0.012f, black);
 
