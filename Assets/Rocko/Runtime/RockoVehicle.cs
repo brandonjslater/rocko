@@ -32,6 +32,8 @@ namespace Rocko
         public float SpeedMPH { get { return Body.linearVelocity.magnitude * 2.2369363f; } }
         public float ForwardSpeed { get { return Vector3.Dot(Body.linearVelocity, transform.forward); } }
         public bool EngineRunning { get; private set; }
+        public bool CanStartEngine { get { return occupied && (Gear == 0 || controls.Clutch > 0.8f); } }
+        private RockoIgnition ignition;
         public bool Shifting { get { return shiftTime > 0; } }
         public bool ClutchLocked { get { return Gear != 0 && !Shifting && ClutchEngagement > 0.95f && Mathf.Abs(RPM - ShaftRPM()) < 80f; } }
         public string Surface { get; private set; } = "Asphalt";
@@ -52,6 +54,7 @@ namespace Rocko
         //
         private void Start()
         {
+            ignition = GetComponent<CarAccess>()?.ignition;
             Body = GetComponent<Rigidbody>();
             Body.mass = spec.curbMass + spec.driverMass;
             Body.centerOfMass = new Vector3(0, 0.48f, 0.24f);
@@ -80,11 +83,6 @@ namespace Rocko
                 if (controls.Up) RequestShift(1);
                 if (controls.Down) RequestShift(-1);
                 if (controls.Assist) { clutchAssist = !clutchAssist; SetNotice("Clutch assist " + (clutchAssist ? "ON" : "OFF — hold C / L1 to shift")); }
-                if (controls.Restart && !EngineRunning)
-                {
-                    if (Gear == 0 || controls.Clutch > 0.8f || clutchAssist) { EngineRunning = true; omega = spec.idleRPM * Mathf.PI / 30f; drivetrain.EngineOmega = omega; }
-                    else SetNotice("Depress clutch or select neutral to start.");
-                }
             }
             for (int i = 0; i < wheels.Length; i++)
             {
@@ -193,6 +191,8 @@ namespace Rocko
             netTorque -= (1 - fuel) * (12f + RPM * 0.003f);
             if (EngineRunning && RPM < spec.idleRPM + 100 && fuel < 0.2f)
                 netTorque += Mathf.Clamp((spec.idleRPM - RPM) * 0.6f + 16f, 0, 80f);
+            if (ignition != null && ignition.StarterEngaged)
+                netTorque += Mathf.Clamp((300 - RPM) * 0.4f, 0, 45);
             CrankTorqueNm = netTorque;
             float engagement = Gear == 0 || Shifting || !occupied ? 0
                 : clutchAssist ? 1 - controls.Clutch : (float)DrivingFeel.ClutchBite(releasedClutch);
@@ -241,7 +241,7 @@ namespace Rocko
                 if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);
                 wheelAngles[i] = Mathf.Repeat(wheelAngles[i] + WheelRPM(i) * 6f * dt, 360f);
             }
-            if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled. I / Triangle to restart with clutch disengaged."); }
+            if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled · hold the ignition key with neutral selected or clutch down."); }
             WheelHP = DriveMath.Horsepower(AxleTorqueNm, (WheelRPM(0) + WheelRPM(1)) * 0.5f);
 
             AntiRoll(0, 1, spec.frontAntiRoll);
@@ -345,16 +345,30 @@ namespace Rocko
             foreach (WheelCollider w in wheels) { w.enabled = false; w.motorTorque = 0; w.brakeTorque = 0; w.steerAngle = 0; w.enabled = true; }
             Gear = pendingGear = 0;
             assistingLaunch = true;
-            drivetrain.Reset(spec.idleRPM);
+            drivetrain.Reset(0);
             System.Array.Clear(wheelAngles, 0, wheelAngles.Length);
             shiftTime = throttle = steering = brakePedal = releasedClutch = ClutchEngagement = 0;
             AxleTorqueNm = WheelHP = LongitudinalG = LateralG = 0;
             previousVelocity = Vector3.zero;
-            omega = spec.idleRPM * Mathf.PI / 30f;
-            EngineRunning = true;
+            omega = 0;
+            EngineRunning = false;
+            GetComponent<CarAccess>()?.ignition?.ResetIgnition();
             Physics.SyncTransforms();
             Body.WakeUp();
-            SetNotice("Neutral · Shift / Circle for 1st, Ctrl / Square for reverse.");
+            SetNotice("Engine off · sit down, insert the key, then hold the ignition to crank.");
+        }
+
+        //
+        // @description - Catch the engine after ignition cranking with a neutral or disengaged-clutch interlock
+        // @return {bool} - Whether the engine started
+        //
+        public bool StartEngine()
+        {
+            if (!CanStartEngine) return false;
+            EngineRunning = true;
+            omega = spec.idleRPM * Mathf.PI / 30f;
+            drivetrain.EngineOmega = omega;
+            return true;
         }
 
         //

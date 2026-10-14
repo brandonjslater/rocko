@@ -1,22 +1,22 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
-### Open the door and move inside
+### Manual entry, movable doors and ignition
 
-Look at either door, the hood, or the hatch and **left-click (Mouse 1)** on PC or press **R1** on DualSense. The center dot shows your interaction target. These panels open and close on animated hinges; a simple engine bay and cargo floor are visible underneath.
+**Mouse 1 (left-click) / R1** interacts with the aimed part. For a door, hold the button and move the camera horizontally to swing it. Release to let it settle at an intermediate angle, or hold without moving the camera to pull it shut. Travel is limited by the hinge stops; momentum, damping and gravity determine the free motion. Hood and hatch still use click-to-open/close assistance.
 
-To drive:
+1. Swing the driver door clear, toggle crouch with **C / L3**, and move inside with **WASD / left stick**.
+2. Look at the driver seat and click to sit. **Any door position is allowed**, including fully closed. Clicking from outside still cannot teleport you inside.
+3. Look just right of the steering column at the silver **ignition barrel**. Click once to insert the key, then release.
+4. Press and hold on the barrel to crank for about 0.7 seconds. Select neutral or hold **C / L1** to disengage the clutch first.
+5. Release the button when the engine starts. The starter disengages when the engine catches; the key stays turned until you release it.
 
-1. Open the **left driver door**.
-2. Toggle crouch with **C / L3**.
-3. Use **WASD / left stick** to move through the doorway yourself, toward the driver seat.
-4. Look down at the seat and **left-click / R1** to sit. Clicking from outside cannot move you into the car.
-5. Look at the door to close it. Your existing driving controls apply once seated.
+Cars spawn and reset with the engine **off**. The I / Triangle instant-restart shortcut has been removed; use the ignition after a stall. Clutch assistance does not bypass the starter interlock. Normal driving input response and the handling tune are unchanged.
 
-To get out, stop, look away from the doors and **left-click / R1** to get up inside the cabin. Open the door and move outside yourself. Toggle crouch again once clear of the roof. C remains the clutch key while driving; L3 crouches only while on foot.
+To leave, stop, look away from interactable parts and click to get up inside the cabin. Open the door and walk out yourself. Seating no longer depends on the door being open. Seat-shaped walking barriers were removed and the sill approach is ramped. Walking surfaces now have independent kinematic bodies, so walking into or closing a door cannot apply contact torque to the vehicle chassis. Doors stop when their next pose intersects the walking player.
 
-Garage reset closes the panels and puts you outside. Straight/circuit staging preserves whether you were seated; staging on foot still requires manual entry. Walking collision uses a separate cabin floor, seats, roof, doorway and moving doors. The coarse vehicle chassis excludes the player; cabin collision only contacts the player on reserved layer 30. Vehicle mass, inertia, gearing, grip and driving input response are unchanged.
+This remains a bounded simulated hinge, not a damage-capable Rigidbody door; panels do not collide with scenery. Layer 30 is reserved for the walking player. Garage reset closes all panels and clears the key. Staging preserves whether you were seated but resets the ignition.
 
-Panels are animated rather than physics-driven hinges; there is no visible player body or general object grabbing yet. Open panels do not collide with scenery. Unity PlayMode tests exercise actual CharacterController movement against a closed door and through an open one, outside seating rejection, roof clearance, manual exit, hinge directions and reset. Run these alongside the existing driving tests; Unity runtime validation is still required.
+Unity PlayMode regressions cover manual entry with a dynamic car, closed-door seating, car roll stability, independent walking collision, ignition insertion/hold/release and clutch interlock, intermediate door travel and hold-to-close. Run these alongside the existing driving tests. Unity runtime validation remains required; source syntax and the standalone drivetrain checks can run outside Unity.
 
 ### Controller steering and triggers
 
@@ -110,7 +110,7 @@ A first-person Scirocco II sandbox focused on developing the driving model befor
 3. Open with **Unity 6.0 / 6000.0**. The project version file uses `6000.0.23f1` as its API baseline; you can select your installed 6000.0 patch in Hub. Allow package restoration and any Input System restart prompt.
 4. Open **Assets → Rocko → Scenes → Rocko**, or use **Rocko → Open Prototype Scene**.
 5. Press **Play**, then click the Game view. The world and car are generated at runtime, so the scene is intentionally almost empty before Play.
-6. You start on foot in the garage, beside the driver's door. Press **E**, then **Shift** for first gear. Use **W** to accelerate, **S** to brake, and **A/D** to steer. Look around with the mouse.
+6. You start on foot beside the car. Follow the manual entry and ignition steps above, then use **Shift** for first gear, **W** to accelerate, **S** to brake, and **A/D** to steer.
 
 The project uses Unity's **Built-in Render Pipeline**. Do not convert it to URP/HDRP without replacing its two surface shaders. No Asset Store purchase or external vehicle model is required.
 
@@ -131,7 +131,7 @@ Controller prompts default to DualSense button names. The underlying gamepad bin
 | Gear down | Ctrl | Square |
 | Disengage clutch | Hold C | Hold L1 |
 | Handbrake | Hold Space | Hold Cross |
-| Restart stalled engine | I | Triangle |
+| Insert ignition key / hold to crank | Mouse 1 on ignition | R1 on ignition |
 | Reset outside car at garage | R | Create |
 | Stage straight test, seated | F2 | D-pad up |
 | Toggle clutch assistance | F3 | D-pad left |

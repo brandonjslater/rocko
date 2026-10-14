@@ -43,7 +43,7 @@ namespace Rocko.Tests
             driver.SetPaused(false);
             car.controls.enabled = false;
             car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
-            car.occupied = true;
+            car.occupied = true; Assert.That(car.StartEngine(), Is.True);
             car.clutchAssist = assist;
             car.controls.Throttle = car.controls.Brake = 0;
             car.controls.Handbrake = false;
@@ -117,7 +117,7 @@ namespace Rocko.Tests
             try
             {
                 car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
-                car.occupied = true;
+                car.occupied = true; Assert.That(car.StartEngine(), Is.True);
                 car.controls.Throttle = car.controls.Brake = car.controls.Clutch = car.controls.Steer = 0;
                 car.controls.Handbrake = false;
                 // Wait beyond PhysX's low-speed timer, with no engine drive request.
@@ -158,7 +158,7 @@ namespace Rocko.Tests
             try
             {
                 car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
-                car.occupied = true;
+                car.occupied = true; Assert.That(car.StartEngine(), Is.True);
                 car.controls.Throttle = car.controls.Clutch = car.controls.Steer = 0;
                 car.controls.Handbrake = false;
                 car.controls.Brake = 1;
@@ -192,7 +192,7 @@ namespace Rocko.Tests
             RockoVehicle car = driver.car;
             driver.StageCircuit();
             Assert.That(driver.Driving, Is.False, "Staging on foot must not bypass entry.");
-            car.occupied = true; // This test supplies a seated driving fixture for circuit physics.
+            car.occupied = true; Assert.That(car.StartEngine(), Is.True); // This test supplies a seated driving fixture for circuit physics.
             car.controls.enabled = false;
             try
             {
@@ -264,7 +264,7 @@ namespace Rocko.Tests
             try
             {
                 car.ResetAt(new Vector3(92,.08f,125),Quaternion.identity);
-                car.occupied=true;car.clutchAssist=true;
+                car.occupied=true; Assert.That(car.StartEngine(), Is.True);car.clutchAssist=true;
                 car.controls.Throttle=car.controls.Brake=car.controls.Steer=car.controls.Clutch=0;
                 car.controls.Handbrake=false;
                 for(int i=0;i<100;i++) yield return new WaitForFixedUpdate();
@@ -310,7 +310,7 @@ namespace Rocko.Tests
             driver.SetPaused(false);
             car.controls.enabled = false;
             car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
-            car.occupied = true;
+            car.occupied = true; Assert.That(car.StartEngine(), Is.True);
             car.controls.Clutch = 0;
             car.controls.Brake = 0;
             car.controls.Handbrake = false;

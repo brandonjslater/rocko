@@ -20,8 +20,8 @@ namespace Rocko
         [HideInInspector] public bool ControllerSteering, ControllerThrottle, ControllerBrake;
         public float Throttle, Brake, Steer, Clutch;
         public Vector2 Move, Look;
-        public bool Up, Down, Interact, Reset, Straight, Restart, Assist, Log, Pause, Handbrake;
-        public bool Help, Recenter, Circuit, Crouch;
+        public bool Up, Down, Interact, Reset, Straight, Assist, Log, Pause, Handbrake;
+        public bool Help, Recenter, Circuit, Crouch, InteractHeld;
 
         //
         // @description - Sample keyboard, mouse, and standardized gamepad controls without legacy axes
@@ -52,11 +52,11 @@ namespace Rocko
             Up = (k != null && (k.leftShiftKey.wasPressedThisFrame || k.rightShiftKey.wasPressedThisFrame)) || (g != null && g.buttonEast.wasPressedThisFrame);
             Down = (k != null && (k.leftCtrlKey.wasPressedThisFrame || k.rightCtrlKey.wasPressedThisFrame)) || (g != null && g.buttonWest.wasPressedThisFrame);
             Interact = (m != null && m.leftButton.wasPressedThisFrame) || (g != null && g.rightShoulder.wasPressedThisFrame);
+            InteractHeld = (m != null && m.leftButton.isPressed) || (g != null && g.rightShoulder.isPressed);
             Crouch = (k != null && k.cKey.wasPressedThisFrame) || (g != null && g.leftStickButton.wasPressedThisFrame);
             Handbrake = (k != null && k.spaceKey.isPressed) || (g != null && g.buttonSouth.isPressed);
             Reset = (k != null && k.rKey.wasPressedThisFrame) || (g != null && g.selectButton.wasPressedThisFrame);
             Straight = (k != null && k.f2Key.wasPressedThisFrame) || (g != null && g.dpad.up.wasPressedThisFrame);
-            Restart = (k != null && k.iKey.wasPressedThisFrame) || (g != null && g.buttonNorth.wasPressedThisFrame);
             Assist = (k != null && k.f3Key.wasPressedThisFrame) || (g != null && g.dpad.left.wasPressedThisFrame);
             Log = (k != null && k.f5Key.wasPressedThisFrame) || (g != null && g.dpad.right.wasPressedThisFrame);
             Pause = (k != null && k.escapeKey.wasPressedThisFrame) || (g != null && g.startButton.wasPressedThisFrame);

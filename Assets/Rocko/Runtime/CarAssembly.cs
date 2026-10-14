@@ -47,7 +47,9 @@ namespace Rocko
             CarAccess.WalkBox(t, new Vector3(0, 0.81f, 0.43f), new Vector3(1.45f, 0.18f, 0.40f));
             foreach (float side in new[] { -1f, 1f })
             {
-                CarAccess.WalkBox(t, new Vector3(side * 0.81f, 0.26f, 0.075f), new Vector3(0.06f, 0.06f, 1.25f));
+                BoxCollider step = CarAccess.WalkBox(t, new Vector3(side * 0.94f, 0.18f, 0.075f),
+                    new Vector3(0.38f, 0.04f, 1.2f));
+                step.transform.localRotation = Quaternion.Euler(0, 0, -side * 30f);
                 CarAccess.WalkBox(t, new Vector3(side * 0.77f, 0.76f, -0.73f), new Vector3(0.10f, 0.94f, 0.25f));
                 CarAccess.WalkBox(t, new Vector3(side * 0.77f, 0.76f, 0.73f), new Vector3(0.10f, 0.94f, 0.12f));
             }
@@ -130,6 +132,16 @@ namespace Rocko
             access.hatch = CarPanel.Create(hatch, new Vector3(0, 1.24f, -0.88f), Vector3.right, 75f,
                 "hatch", new Vector3(0, 0.86f, -1.70f), new Vector3(1.5f, 0.15f, 0.48f));
             BuildCabin(car, black, cloth, silver);
+            GameObject barrel = Geometry.Box("Ignition barrel · insert key / hold to crank", t,
+                new Vector3(-0.15f, 0.71f, 0.25f), new Vector3(0.075f, 0.075f, 0.04f), silver);
+            access.ignition = barrel.AddComponent<RockoIgnition>();
+            access.ignition.car = car;
+            BoxCollider ignitionTarget = barrel.AddComponent<BoxCollider>();
+            ignitionTarget.isTrigger = true; ignitionTarget.size = new Vector3(1.8f, 1.8f, 2f);
+            access.ignition.Target = ignitionTarget;
+            GameObject key = Geometry.Box("Ignition key", t, new Vector3(-0.15f, 0.71f, 0.20f),
+                new Vector3(0.035f, 0.02f, 0.07f), black);
+            access.ignition.keyVisual = key.transform; key.SetActive(false);
             GameObject seatTarget = new GameObject("Driver seat interaction");
             seatTarget.transform.SetParent(t, false);
             seatTarget.transform.localPosition = new Vector3(-0.35f, 0.61f, -0.39f);
@@ -211,8 +223,6 @@ namespace Rocko
             Geometry.Box("Shift knob", t, new Vector3(0.10f, 0.60f, -0.04f), new Vector3(0.055f, 0.055f, 0.055f), black);
             foreach (float x in new[] { -0.35f, 0.35f })
             {
-                CarAccess.WalkBox(t, new Vector3(x, 0.40f, -0.39f), new Vector3(0.49f, 0.13f, 0.49f));
-                CarAccess.WalkBox(t, new Vector3(x, 0.66f, -0.70f), new Vector3(0.49f, 0.5f, 0.10f));
                 Geometry.Box("Front seat cushion", t, new Vector3(x, 0.40f, -0.39f), new Vector3(0.49f, 0.13f, 0.49f), cloth);
                 GameObject back = Geometry.Box("Front seat back", t, new Vector3(x, 0.64f, -0.66f), new Vector3(0.49f, 0.47f, 0.13f), cloth);
                 back.transform.localRotation = Quaternion.Euler(-12, 0, 0);

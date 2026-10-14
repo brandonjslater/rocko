@@ -39,7 +39,7 @@ namespace Rocko
                 Text(new Rect(48, 749, 105, 23), "GEAR", small, mint);
                 Text(new Rect(47, 770, 100, 81), car.Gear < 0 ? "R" : car.Gear == 0 ? "N" : car.Gear.ToString(), gearStyle, Color.white);
                 Metric(176, "SPEED / MPH", car.SpeedMPH.ToString("0.0"), "Rigidbody ground speed");
-                Metric(414, "ENGINE / RPM", car.RPM.ToString("0"), car.EngineRunning ? (car.Shifting ? "Shifting" : car.ClutchLocked ? "Clutch locked" : "Clutch slipping / open") : "STALLED · I / Triangle to restart");
+                Metric(414, "ENGINE / RPM", car.RPM.ToString("0"), car.EngineRunning ? (car.Shifting ? "Shifting" : car.ClutchLocked ? "Clutch locked" : "Clutch slipping / open") : "ENGINE OFF · use ignition key");
                 Metric(652, "ACCELERATION / G", car.LongitudinalG.ToString("+0.00;-0.00;0.00"), "Lateral " + car.LateralG.ToString("+0.00;-0.00;0.00") + " G");
                 Metric(890, "WHEEL OUTPUT / HP", car.WheelHP.ToString("0.0"), "Signed driven-axle shaft power");
                 Metric(1192, "AXLE TORQUE / LB-FT", (car.AxleTorqueNm * DriveMath.NmToLbFt).ToString("0"), "Crank " + (car.CrankTorqueNm * DriveMath.NmToLbFt).ToString("0") + " lb-ft");
@@ -127,7 +127,7 @@ namespace Rocko
                 "Interact / sit / get up       Mouse 1                         R1",
                 "Gear up / down               Shift / Ctrl                  Circle / Square",
                 "Clutch / handbrake          C / Space                    L1 / Cross",
-                "Restart stalled engine     I                                    Triangle",
+                "Ignition: insert / hold       Mouse 1                         R1",
                 "Garage reset                    R                                   Create",
                 "Stage straight run            F2                                D-pad up",
                 "Toggle clutch assistance  F3                                D-pad left",

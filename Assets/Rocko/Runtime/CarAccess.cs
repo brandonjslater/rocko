@@ -9,18 +9,19 @@ namespace Rocko
         public RockoVehicle car;
         public CarPanel driverDoor, passengerDoor, hood, hatch;
         public Collider seatTarget;
+        public RockoIgnition ignition;
 
         //
-        // @description - Require a stopped car, open driver door and a player already inside at the seat
+        // @description - Require a stopped car, a player already inside at the seat, independently of door angle
         // @param {Vector3} feet - Walking player position
         // @return {bool} - Whether a seat interaction may begin
         //
         public bool CanEnter(Vector3 feet)
         {
             Vector3 local = transform.InverseTransformPoint(feet);
-            return !car.occupied && car.SpeedMPH < 1.1f && driverDoor.ClearForEntry &&
-                local.x > -0.60f && local.x < -0.10f && local.z > -0.58f && local.z < 0.15f &&
-                local.y > 0.22f && local.y < 0.65f;
+            return !car.occupied && car.SpeedMPH < 1.1f &&
+                local.x > -0.67f && local.x < -0.08f && local.z > -0.58f && local.z < 0.15f &&
+                local.y > 0.18f && local.y < 0.72f;
         }
 
         //
@@ -38,6 +39,7 @@ namespace Rocko
             {
                 if (hit.collider.transform.IsChildOf(player)) continue;
                 Vector3 localEye = transform.InverseTransformPoint(view.transform.position);
+                if (ignition != null && hit.collider == ignition.Target) return car.occupied ? hit.collider : null;
                 if (hit.collider == seatTarget) return localEye.x < 0 ? seatTarget : null;
                 CarPanel panel = hit.collider.GetComponentInParent<CarPanel>();
                 if (panel != null && panel.transform.IsChildOf(transform))
@@ -66,7 +68,7 @@ namespace Rocko
         }
 
         //
-        // @description - Add player-only collision without adding contact forces against roads or scenery
+        // @description - Add independent kinematic walking collision so player contacts cannot push the dynamic car
         // @param {Transform} parent - Geometry parent
         // @param {Vector3} center - Local center
         // @param {Vector3} size - Box dimensions
@@ -76,8 +78,11 @@ namespace Rocko
         {
             GameObject box = new GameObject("Walking collision");
             box.transform.SetParent(parent, false);
+            box.transform.localPosition = center;
+            Rigidbody proxy = box.AddComponent<Rigidbody>();
+            proxy.isKinematic = true; proxy.useGravity = false;
             BoxCollider collider = box.AddComponent<BoxCollider>();
-            collider.center = center; collider.size = size;
+            collider.center = Vector3.zero; collider.size = size;
             collider.excludeLayers = ~(1 << PlayerLayer);
             collider.layerOverridePriority = 10;
             return collider;

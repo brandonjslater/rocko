@@ -19,6 +19,7 @@ namespace Rocko
         private Vector3 seatedFeet;
         private const float StandingHeight = 1.75f, CrouchedHeight = 0.7f;
         private CarAccess access;
+        private CarPanel grabbedPanel;
         private LagunaSeca circuit;
         private CharacterController capsule;
         private float yaw = 90, pitch = 12, verticalSpeed;
@@ -50,10 +51,19 @@ namespace Rocko
             if (controls.Pause) SetPaused(!Paused);
             if (controls.Help) ShowHelp = !ShowHelp;
             if (Paused) return;
+            access.ignition.Tick(controls.InteractHeld, Time.deltaTime);
+            if (grabbedPanel != null)
+            {
+                if (!controls.InteractHeld || car.SpeedMPH >= 1.1f ||
+                    Vector3.Distance(view.transform.position, grabbedPanel.transform.position) > 2.7f)
+                { grabbedPanel.EndGrab(); grabbedPanel = null; }
+                else grabbedPanel.Drag(view.transform.right, controls.Look.x, Time.deltaTime);
+            }
             if (controls.Reset) { ResetGarage(); return; }
             if (controls.Circuit) { StageCircuit(); return; }
             if (controls.Straight)
             {
+                ReleaseInteractions();
                 OnCircuit = false;
                 car.ResetAt(ProvingGround.StraightCar, Quaternion.identity);
                 StagePlayer(); telemetry.ResetRun(); return;
@@ -68,10 +78,20 @@ namespace Rocko
                 Collider target = access.FindTarget(view, transform);
                 CarPanel panel = target == null ? null : target.GetComponentInParent<CarPanel>();
                 if (car.SpeedMPH >= 1.1f) Prompt = "Stop to open a door or exit · V / R3 · Center view";
+                else if (access.ignition.Cranking)
+                    Prompt = car.EngineRunning ? "Release Mouse 1 / R1 · Release ignition key" : "Cranking… keep holding Mouse 1 / R1";
+                else if (target == access.ignition.Target)
+                {
+                    Prompt = !access.ignition.KeyInserted ? "Mouse 1 / R1 · Insert ignition key"
+                        : access.ignition.MustRelease ? "Release Mouse 1 / R1 · Release ignition key"
+                        : car.EngineRunning ? "Engine running" : "Hold Mouse 1 / R1 · Crank engine";
+                    if (controls.Interact) access.ignition.Press();
+                }
                 else if (panel == access.driverDoor || panel == access.passengerDoor)
                 {
-                    Prompt = "Mouse 1 / R1 · " + (panel.IsOpen ? "Close " : "Open ") + panel.Label;
-                    if (controls.Interact) panel.SetOpen(!panel.IsOpen);
+                    Prompt = panel.IsDoor ? "Mouse 1 / R1 + look · Swing door · Hold still to close"
+                        : "Mouse 1 / R1 · " + (panel.IsOpen ? "Close " : "Open ") + panel.Label;
+                    if (controls.Interact) InteractPanel(panel);
                 }
                 else
                 {
@@ -93,13 +113,14 @@ namespace Rocko
                 if (car.SpeedMPH >= 1.1f) Prompt = "Wait for Rocko to stop";
                 else if (panel != null)
                 {
-                    Prompt = "Mouse 1 / R1 · " + (panel.IsOpen ? "Close " : "Open ") + panel.Label;
-                    if (controls.Interact) panel.SetOpen(!panel.IsOpen);
+                    Prompt = panel.IsDoor ? "Mouse 1 / R1 + look · Swing door · Hold still to close"
+                        : "Mouse 1 / R1 · " + (panel.IsOpen ? "Close " : "Open ") + panel.Label;
+                    if (controls.Interact) InteractPanel(panel);
                 }
                 else if (target == access.seatTarget)
                 {
                     Prompt = access.CanEnter(transform.position) ? "Mouse 1 / R1 · Sit in driver seat"
-                        : "Open driver door · C / L3 to crouch · Move inside to the driver seat";
+                        : "C / L3 to crouch · Move inside to the driver seat";
                     if (controls.Interact) TryEnter();
                 }
             }
@@ -131,6 +152,32 @@ namespace Rocko
         }
 
         //
+        // @description - Capture a continuously movable door or toggle a supported hood/hatch
+        // @param {CarPanel} panel - Aimed panel
+        // @return {Void} - Starts the selected interaction
+        //
+        private void InteractPanel(CarPanel panel)
+        {
+            if (panel.IsDoor)
+            {
+                if (grabbedPanel != null) grabbedPanel.EndGrab();
+                grabbedPanel = panel; panel.BeginGrab();
+            }
+            else panel.SetOpen(!panel.IsOpen);
+        }
+
+        //
+        // @description - Release held objects and the starter before pause or teleport
+        // @return {Void} - Clears active interactions safely
+        //
+        private void ReleaseInteractions()
+        {
+            if (grabbedPanel != null) grabbedPanel.EndGrab();
+            grabbedPanel = null;
+            if (access != null && access.ignition != null) access.ignition.CancelHold();
+        }
+
+        //
         // @description - Sit only after the player has moved inside to the driver seat
         // @return {bool} - Whether driving controls became active
         //
@@ -148,7 +195,8 @@ namespace Rocko
         //
         private void TryExit()
         {
-            if (car.SpeedMPH >= 1.1f) return;
+            if (car.SpeedMPH >= 1.1f || access.ignition.Cranking) return;
+            access.ignition.CancelHold();
             Vector3 feet = car.transform.TransformPoint(seatedFeet);
             if (StandingBlocked(feet, CrouchedHeight))
             {
@@ -228,6 +276,7 @@ namespace Rocko
         //
         public void StageCircuit()
         {
+            ReleaseInteractions();
             if (circuit == null) circuit = new GameObject("Laguna Seca / approximate reference layout").AddComponent<LagunaSeca>();
             car.ResetAt(circuit.StartPosition, circuit.StartRotation);
             OnCircuit = true;
@@ -243,6 +292,7 @@ namespace Rocko
         //
         public void ResetGarage()
         {
+            ReleaseInteractions();
             Crouched = false; ApplyPosture();
             OnCircuit = false;
             car.occupied = false;
@@ -262,6 +312,7 @@ namespace Rocko
         //
         public void SetPaused(bool value)
         {
+            if (value) ReleaseInteractions();
             Paused = value;
             Time.timeScale = value ? 0 : 1;
             Cursor.lockState = value ? CursorLockMode.None : CursorLockMode.Locked;

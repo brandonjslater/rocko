@@ -34,6 +34,9 @@ namespace Rocko
         private void Update()
         {
             source.pitch = Mathf.Clamp(car.RPM / 3000f, 0.15f, 3f);
+            RockoIgnition ignition = car.GetComponent<CarAccess>()?.ignition;
+            if (ignition != null && ignition.StarterEngaged && Time.timeScale > 0)
+            { source.pitch = 0.22f; source.volume = 0.09f; return; }
             source.volume = car.EngineRunning && Time.timeScale > 0 ? 0.08f + Mathf.Abs(car.CrankTorqueNm) / 165f * 0.13f : 0;
         }
 
