@@ -35,6 +35,7 @@ namespace Rocko
         [Min(0f)] public float rearBrakeTorque = 320f;
         [Header("Provisional stable handling tune")]
         [Range(0.5f, 1.5f)] public float tireGripScale = 1.12f;
+        [Tooltip("Unified tire lateral stiffness multiplier; does not increase the shared friction limit.")]
         [Range(0.5f, 1.5f)] public float lateralGripScale = 1.08f;
         [Min(1f)] public float steeringSpeedScale = 13f;
         public float frontSpring = 26000f;

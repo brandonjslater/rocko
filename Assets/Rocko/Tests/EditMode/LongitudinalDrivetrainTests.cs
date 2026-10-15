@@ -6,6 +6,30 @@ namespace Rocko.Tests
     public sealed class LongitudinalDrivetrainTests
     {
         //
+        // @description - Keep longitudinal and lateral demand inside one tire friction budget
+        // @return {Void} - Verifies force limits, symmetry and airborne behavior
+        //
+        [Test]
+        public void CombinedTireSharesGripAndOpposesSlip()
+        {
+            foreach (double forward in new[] { -20.0, 0, 20 })
+            foreach (double slip in new[] { -1.0, -0.1, 0, 0.1, 1 })
+            foreach (double sideways in new[] { -5.0, 0, 5 })
+            {
+                LongitudinalDrivetrain.CombinedForce(slip, sideways, forward, 3000, 1.12, 1.08, out double fx, out double fy);
+                Assert.That(Math.Sqrt(fx * fx + fy * fy), Is.LessThanOrEqualTo(3460.8 + 1e-6));
+                Assert.That(fx * -slip + fy * sideways, Is.LessThanOrEqualTo(1e-6));
+                if (sideways == 0)
+                    Assert.That(fx, Is.EqualTo(LongitudinalDrivetrain.TireCoefficient(slip) * 3360).Within(1e-6));
+            }
+            LongitudinalDrivetrain.CombinedForce(1, 10, 0, 0, 1, 1, out double unloadedX, out double unloadedY);
+            Assert.That(unloadedX, Is.Zero); Assert.That(unloadedY, Is.Zero);
+            LongitudinalDrivetrain.CombinedForce(0, 1.5, 20, 3000, 1, 1, out _, out double coast);
+            LongitudinalDrivetrain.CombinedForce(0.3, 1.5, 20, 3000, 1, 1, out _, out double power);
+            Assert.That(Math.Abs(power), Is.LessThan(Math.Abs(coast)));
+        }
+
+        //
         // @description - Build a four-wheel rotor fixture without contact forces
         // @return {LongitudinalDrivetrain} - Pure game solver ready for conservation and capacity checks
         //

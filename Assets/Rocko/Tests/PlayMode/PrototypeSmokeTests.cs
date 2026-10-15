@@ -9,6 +9,51 @@ namespace Rocko.Tests
     public sealed class PrototypeSmokeTests
     {
         //
+        // @description - Verify custom lateral forces steer the real chassis with native tire friction disabled
+        // @return {IEnumerator} - Unity integration checks for steering direction and shared grip bounds
+        //
+        [UnityTest]
+        public IEnumerator UnifiedTiresSteerWithNoNativeFriction()
+        {
+            yield return SceneManager.LoadSceneAsync("Rocko", LoadSceneMode.Single);
+            yield return null;
+            FirstPersonDriver driver = Object.FindFirstObjectByType<FirstPersonDriver>();
+            RockoVehicle car = driver.car;
+            driver.SetPaused(false); car.controls.enabled = false;
+            try
+            {
+                car.ResetAt(new Vector3(92, 0.08f, 125), Quaternion.identity);
+                car.occupied = true; car.clutchAssist = true;
+                car.controls.Throttle = car.controls.Brake = car.controls.Clutch = car.controls.Steer = 0;
+                car.controls.Handbrake = false;
+                Assert.That(car.StartEngine(), Is.True);
+                for (int i = 0; i < 100; i++) yield return new WaitForFixedUpdate();
+                car.RequestShift(1); car.controls.Throttle = 0.6f;
+                for (int i = 0; i < 500 && car.ForwardSpeed < 7; i++) yield return new WaitForFixedUpdate();
+                Assert.That(car.ForwardSpeed, Is.GreaterThan(5));
+                car.controls.Throttle = 0; car.controls.Clutch = 1; car.controls.Steer = 0.15f;
+                float peakYaw = 0, peakLateralForce = 0;
+                for (int tick = 0; tick < 80; tick++)
+                {
+                    yield return new WaitForFixedUpdate();
+                    peakYaw = Mathf.Max(peakYaw, car.Body.angularVelocity.y);
+                    for (int i = 0; i < 4; i++)
+                    {
+                        Assert.That(car.wheels[i].forwardFriction.stiffness, Is.Zero);
+                        Assert.That(car.wheels[i].sidewaysFriction.stiffness, Is.Zero);
+                        float fx = car.TireForce(i, false), fy = car.TireForce(i, true);
+                        peakLateralForce = Mathf.Max(peakLateralForce, Mathf.Abs(fy));
+                        Assert.That(Mathf.Sqrt(fx * fx + fy * fy), Is.LessThanOrEqualTo(car.TireCapacity(i) + 2f));
+                    }
+                    Assert.That(Vector3.Dot(car.transform.up, Vector3.up), Is.GreaterThan(0.9f));
+                }
+                Assert.That(peakLateralForce, Is.GreaterThan(100), "Custom tire solver must supply cornering force.");
+                Assert.That(peakYaw, Is.GreaterThan(0.03f), "Right steering must produce rightward yaw.");
+            }
+            finally { driver.ResetGarage(); car.controls.enabled = true; }
+        }
+
+        //
         // @description - Require sustained lock in the real scene with launch assistance enabled
         // @return {IEnumerator} - PlayMode launch and cruise assertions
         //

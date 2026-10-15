@@ -8,6 +8,12 @@ namespace Rocko
         public double EngineOmega;
         public readonly double[] WheelOmega = new double[4];
         public readonly double[] ContactSpeed = new double[4];
+        public readonly double[] LateralContactSpeed = new double[4];
+        public readonly double[] LateralImpulse = new double[4];
+        // Rows/columns 0–3 are forward axes; 4–7 are rightward axes.
+        public readonly double[] ContactResponse = new double[64];
+        public bool UseContactResponse;
+        public double LateralStiffness = 1;
         public readonly double[] NormalLoad = new double[4];
         public readonly double[] Grip = new double[4];
         public readonly double[] BrakeTorque = new double[4];
@@ -16,7 +22,7 @@ namespace Rocko
         public readonly double[] Slip = new double[4];
         public readonly double[] DirectionDot = new double[16];
         public double ClutchTorque, AxleTorque;
-        private readonly double[] force = new double[4];
+        private readonly double[] force = new double[8];
         private readonly double[] freeWheel = new double[4];
 
         //
@@ -31,6 +37,8 @@ namespace Rocko
             Array.Clear(WheelOmega, 0, 4);
             Array.Clear(ForceImpulse, 0, 4);
             Array.Clear(Slip, 0, 4);
+            Array.Clear(LateralImpulse, 0, 4);
+            Array.Clear(LateralContactSpeed, 0, 4);
         }
 
         //
@@ -44,6 +52,32 @@ namespace Rocko
             double coefficient = s <= 0.10 ? 1.03 * s / 0.10
                 : s < 0.55 ? 1.03 - 0.27 * (s - 0.10) / 0.45 : 0.76;
             return Math.Sign(slip) * coefficient;
+        }
+
+        //
+        // @description - Share one grip budget between drive/brake slip and lateral sliding
+        // @param {double} slip - Signed longitudinal slip ratio
+        // @param {double} sidewaysSpeed - Rightward contact speed in m/s
+        // @param {double} forwardSpeed - Forward contact speed in m/s
+        // @param {double} load - Positive tire normal force in N
+        // @param {double} grip - Surface/tire friction scale
+        // @param {double} stiffness - Lateral response multiplier, not additional peak grip
+        // @param {double} forwardForce - Output longitudinal force in N
+        // @param {double} lateralForce - Output rightward force in N
+        // @return {Void} - Bounded combined force; exactly matches the old straight-line curve
+        //
+        public static void CombinedForce(double slip, double sidewaysSpeed, double forwardSpeed,
+            double load, double grip, double stiffness, out double forwardForce, out double lateralForce)
+        {
+            double x = slip / 0.10;
+            double y = -sidewaysSpeed / Math.Max(0.5, Math.Abs(forwardSpeed))
+                * Math.Max(0, stiffness) / 0.12;
+            double demand = Math.Sqrt(x * x + y * y);
+            if (demand < 1e-12 || load <= 0 || grip <= 0)
+            { forwardForce = lateralForce = 0; return; }
+            double magnitude = TireCoefficient(demand * 0.10) * load * grip;
+            forwardForce = magnitude * x / demand;
+            lateralForce = magnitude * y / demand;
         }
 
         //
@@ -71,6 +105,7 @@ namespace Rocko
             double limit = ratio == 0 ? 0 : Math.Max(0, capacity);
             ClutchTorque = AxleTorque = 0;
             Array.Clear(ForceImpulse, 0, 4);
+            Array.Clear(LateralImpulse, 0, 4);
             for (int step = 0; step < count; step++)
             {
                 for (int i = 0; i < 4; i++)
@@ -78,7 +113,8 @@ namespace Rocko
                     double surfaceSpeed = WheelOmega[i] * radius;
                     double denominator = Math.Max(0.5, Math.Max(Math.Abs(ContactSpeed[i]), Math.Abs(surfaceSpeed)));
                     Slip[i] = (surfaceSpeed - ContactSpeed[i]) / denominator;
-                    force[i] = NormalLoad[i] > 0 ? TireCoefficient(Slip[i]) * NormalLoad[i] * Grip[i] : 0;
+                    CombinedForce(Slip[i], LateralContactSpeed[i], ContactSpeed[i], NormalLoad[i],
+                        Grip[i], LateralStiffness, out force[i], out force[i + 4]);
                     double inertia = Math.Max(0.01, WheelInertia[i]);
                     // Brake impulses are projected below so they cannot reverse a stopped wheel.
                     freeWheel[i] = WheelOmega[i] - (force[i] * radius + 0.3 * WheelOmega[i]) / inertia * h;
@@ -100,14 +136,32 @@ namespace Rocko
                     double brakeDelta = Math.Max(0, BrakeTorque[i]) * h / inertia;
                     WheelOmega[i] = Math.Sign(beforeBrake) * Math.Max(0, Math.Abs(beforeBrake) - brakeDelta);
                     ForceImpulse[i] += force[i] * h;
+                    LateralImpulse[i] += force[i + 4] * h;
                 }
-                // Predict translation within this outer tick. Unity applies these exact impulses
-                // at the contact points afterward, including their pitching/yawing moments.
+                // Predict all contact velocities from the same combined impulses, including
+                // angular response. Unity applies those impulses exactly once after this solve.
                 for (int i = 0; i < 4; i++)
                 {
-                    double acceleration = 0;
-                    for (int j = 0; j < 4; j++) acceleration += DirectionDot[i * 4 + j] * force[j] / vehicleMass;
-                    ContactSpeed[i] += acceleration * h;
+                    double forwardAcceleration = 0, lateralAcceleration = 0;
+                    if (UseContactResponse)
+                    {
+                        for (int j = 0; j < 8; j++)
+                        {
+                            forwardAcceleration += ContactResponse[i * 8 + j] * force[j];
+                            lateralAcceleration += ContactResponse[(i + 4) * 8 + j] * force[j];
+                        }
+                    }
+                    else
+                    {
+                        // Flat, parallel-wheel fixture used by standalone longitudinal tests.
+                        for (int j = 0; j < 4; j++)
+                        {
+                            forwardAcceleration += DirectionDot[i * 4 + j] * force[j] / vehicleMass;
+                            lateralAcceleration += force[j + 4] / vehicleMass;
+                        }
+                    }
+                    ContactSpeed[i] += forwardAcceleration * h;
+                    LateralContactSpeed[i] += lateralAcceleration * h;
                 }
                 ClutchTorque += impulse / dt;
                 AxleTorque += impulse * transfer / dt;

@@ -20,7 +20,8 @@ internal static class Program
         Shift();
         Limits();
         PedalAndGrip();
-        FwdCornerBalance();
+        UnifiedTires();
+        foreach (double dt in new[] { 0.005, 0.01, 0.02 }) ContactDamping(dt);
         ControllerChecks();
         Console.WriteLine("PASS: shared C# drivetrain checks. Unity suspension/cornering integration is not exercised here.");
     }
@@ -261,8 +262,8 @@ internal static class Program
     }
 
     //
-    // @description - Check pedal endpoints, monotonic bite, and bounded lateral grip
-    // @return {Void} - Throws if pedal authority or lateral authority is lost
+    // @description - Check pedal endpoints, monotonic bite, and steering travel
+    // @return {Void} - Throws if pedal or steering authority is lost
     //
     private static void PedalAndGrip()
     {
@@ -277,45 +278,89 @@ internal static class Program
             double bite = DrivingFeel.ClutchBite(x);
             Check(bite >= previous && bite <= 1, "Monotonic bite", false, 0, x, bite);
             previous = bite;
-            double lateral = DrivingFeel.LateralGrip(x * 3000, 3000);
-            Check(lateral >= 0.90 && lateral <= 1 && (x == 0 || lateral < 1),
-                "Bounded lateral authority", false, 0, x, lateral);
+
         }
         Check(DrivingFeel.ClutchBite(0) == 0 && DrivingFeel.ClutchBite(1) == 1,
             "Clutch endpoints", false, 0, 0, 0);
         Check(DrivingFeel.BrakeDemand(0) == 0 && DrivingFeel.BrakeDemand(1) == 1 && DrivingFeel.BrakeDemand(0.5) < 0.5,
             "Progressive brakes retain full authority", false, 0, 0, 0);
-        Check(DrivingFeel.LateralGrip(-4000, 3000) == 0.90 && DrivingFeel.LateralGrip(0, 0) == 0,
-            "Grip saturation and no load", false, 0, 0, 0);
-        Console.WriteLine("PASS progressive pedals and bounded lateral grip");
+        Console.WriteLine("PASS progressive pedals and steering limits");
     }
 
     //
-    // @description - Check low-speed preservation and high-speed FWD axle response ordering
-    // @return {Void} - Verifies response bounds, not full Unity vehicle yaw dynamics
+    // @description - Verify shared grip, force direction, straight-line identity and load limits
+    // @return {Void} - Throws if combined tires generate energy or exceed their friction budget
     //
-    private static void FwdCornerBalance()
+    private static void UnifiedTires()
     {
-        foreach(bool front in new[]{true,false})
-            foreach(double brake in new[]{0.0,0.2,1.0})
-                Check(DrivingFeel.FwdBalance(front,13.4112,1,brake,.3)==1,
-                    "Low-speed balance unchanged",false,0,0,0);
-        double coast=DrivingFeel.FwdBalance(true,25,0,0,0);
-        double power=DrivingFeel.FwdBalance(true,25,1,0,0);
-        double trail=DrivingFeel.FwdBalance(true,25,1,.2,.3);
-        double rear=DrivingFeel.FwdBalance(false,25,1,0,0);
-        double rearTrail=DrivingFeel.FwdBalance(false,25,1,.2,.3);
-        Check(power<coast && coast<rear,"Powered front saturates before rear",false,0,0,power);
-        Check(trail/rearTrail>power/rear,"Light braking reduces understeer bias",false,0,0,trail);
-        Check(DrivingFeel.FwdBalance(true,25,1,.2,0)==power,
-            "Brake correction requires actual deceleration",false,0,0,0);
-        Check(DrivingFeel.FwdBalance(true,25,1,1,.3)==power,
-            "Heavy braking does not grant extra rotation correction",false,0,0,0);
-        for(double speed=0;speed<=60;speed+=.5)
-            Check(DrivingFeel.FwdBalance(true,speed,1,.2,.3)>=.7 &&
-                DrivingFeel.FwdBalance(false,speed,1,.2,.3)>=1,
-                "Grip remains bounded",false,0,speed,0);
-        Console.WriteLine("PASS FWD balance: low-speed unchanged, power understeer, bounded trail-brake response");
+        foreach (double speed in new[] { -20.0, -0.1, 0, 0.1, 20 })
+        foreach (double slip in new[] { -1.0, -0.1, -0.03, 0, 0.03, 0.1, 1 })
+        foreach (double lateral in new[] { -5.0, -0.1, 0, 0.1, 5 })
+        {
+            LongitudinalDrivetrain.CombinedForce(slip, lateral, speed, 3000, 1.12, 1.08, out double fx, out double fy);
+            Check(Math.Sqrt(fx * fx + fy * fy) <= 1.03 * 3000 * 1.12 + 1e-8,
+                "Combined grip limit", false, 0, speed, fx);
+            Check(fx * (-slip) + fy * lateral <= 1e-8, "Contact dissipates slip", false, 0, speed, fy);
+            if (lateral == 0)
+                Check(Math.Abs(fx - LongitudinalDrivetrain.TireCoefficient(slip) * 3000 * 1.12) < 1e-8,
+                    "Straight-line curve preserved", false, 0, speed, fx);
+        }
+        LongitudinalDrivetrain.CombinedForce(0, 1.5, 20, 3000, 1, 1, out _, out double coast);
+        LongitudinalDrivetrain.CombinedForce(0.3, 1.5, 20, 3000, 1, 1, out _, out double power);
+        LongitudinalDrivetrain.CombinedForce(-0.3, 1.5, 20, 3000, 1, 1, out _, out double braking);
+        Check(Math.Abs(power) < Math.Abs(coast) && Math.Abs(braking - power) < 1e-9,
+            "Drive and braking share cornering grip", false, 0, 0, power);
+        LongitudinalDrivetrain.CombinedForce(1, 5, 0, 0, 1, 1, out double unloadedX, out double unloadedY);
+        Check(unloadedX == 0 && unloadedY == 0, "Airborne has no tire force", false, 0, 0, 0);
+        Console.WriteLine("PASS combined tires: grip bound, dissipation, reverse/zero speed, airborne, straight-line identity");
+    }
+
+    //
+    // @description - Integrate a four-contact chassis with translation and yaw through a lateral slide
+    // @param {double} dt - Outer simulation timestep
+    // @return {Void} - Asserts contact-matrix integration damps slip and never creates kinetic energy
+    //
+    private static void ContactDamping(double dt)
+    {
+        var model = Create(1);
+        model.UseContactResponse = true;
+        model.EngineOmega = 0;
+        double[] x = { -0.695, 0.695, -0.695, 0.695 };
+        double[] z = { 1.2, 1.2, -1.2, -1.2 };
+        double lateral = 2, forward = 15, yaw = 0.3, yawInertia = 1450;
+        for (int i = 0; i < 4; i++) model.WheelOmega[i] = (forward - yaw * x[i]) / Radius;
+        for (int i = 0; i < 8; i++)
+        for (int j = 0; j < 8; j++)
+        {
+            double armI = i < 4 ? -x[i] : z[i - 4];
+            double armJ = j < 4 ? -x[j] : z[j - 4];
+            model.ContactResponse[i * 8 + j] = ((i < 4) == (j < 4) ? 1 / Mass : 0)
+                + armI * armJ / yawInertia;
+        }
+        double previousEnergy = double.PositiveInfinity;
+        for (int tick = 0; tick < (int)Math.Round(3 / dt); tick++)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                model.ContactSpeed[i] = forward - yaw * x[i];
+                model.LateralContactSpeed[i] = lateral + yaw * z[i];
+            }
+            model.Step(dt, 0, 0.28, 0, 0, 1, Mass, Radius);
+            for (int i = 0; i < 4; i++)
+            {
+                forward += model.ForceImpulse[i] / Mass;
+                lateral += model.LateralImpulse[i] / Mass;
+                yaw += (-x[i] * model.ForceImpulse[i] + z[i] * model.LateralImpulse[i]) / yawInertia;
+                Check(Math.Abs(model.ContactSpeed[i]) < 100, "Finite contact state", false, dt, tick * dt, model.ContactSpeed[i]);
+            }
+            double energy = 0.5 * Mass * (forward * forward + lateral * lateral) + 0.5 * yawInertia * yaw * yaw;
+            for (int i = 0; i < 4; i++) energy += 0.5 * model.WheelInertia[i] * model.WheelOmega[i] * model.WheelOmega[i];
+            Check(energy <= previousEnergy + 1e-6, "Combined contact energy cannot increase", false, dt, tick * dt, energy - previousEnergy);
+            previousEnergy = energy;
+        }
+        Check(Math.Abs(lateral) < 0.02 && Math.Abs(yaw) < 0.02,
+            "Lateral and yaw motion settle", false, dt, 3, lateral);
+        Console.WriteLine($"PASS contact matrix dt={dt}: lateral={lateral:F6} m/s, yaw={yaw:F6} rad/s");
     }
 
     //

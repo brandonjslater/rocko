@@ -1,5 +1,19 @@
 # 🚗 Rocko — Unity driving prototype 0.1
 
+### Experimental unified tire model (`feat/unified-tires`)
+
+This branch builds on the latest car-access/ignition changes. One custom solver now supplies **both longitudinal and lateral tire force**. WheelColliders retain suspension/contact detection; both native tire-friction stiffness values are zero. The native wheel keep-alive torque remains in place to prevent PhysX sticky constraints from pinning the chassis.
+
+Each tire combines normalized drive/braking slip and lateral slip into one demand vector. Its magnitude follows the existing peak-to-sliding friction curve, bounded by **1.03 × normal load × surface grip × tireGripScale**. Acceleration or braking can therefore consume cornering capacity. With no lateral slip the longitudinal curve is identical to the previous solver. The same engine/clutch/wheel microsteps predict all eight contact velocities using the chassis mass and full world-space inertia response, then apply the resulting forces once at the contact patches.
+
+The old 30–50 mph FWD grip multipliers and minimum-90% lateral-grip workaround have been removed. Front-drive understeer now comes from front tire demand sharing; braking balance comes from brake torque and suspension loads. This changes handling, including low-speed cornering. It is a first calibration, not a reproduction of Forza or a validated real-car tire model. No Forza code/data was copied.
+
+Steering curves, button mappings, gearbox ratios, engine curve, brakes and suspension settings are retained. `lateralGripScale` now controls lateral response stiffness, **not an extra peak grip allowance**. Surface differences still apply. At very low speed the slip calculation is regularized at 0.5 m/s; this is not a separate static-friction/parking constraint. Tire temperature, wear, camber thrust and tire relaxation dynamics are not modeled.
+
+Standalone checks pass for launches, sustained clutch lock, shifts, reverse, dirt, combined-force bounds, energy dissipation and lateral/yaw settling at 5/10/20 ms outer steps. Run Unity's **UnifiedTiresSteerWithNoNativeFriction**, existing launch/lock tests and **ModerateCornerBrakingRemainsStable** before merging. Unity integration and driving feel have not been verified here.
+
+For comparison drives, try steady throttle through one bend, then add throttle, then repeat with light braking. Check whether the front progressively pushes wider and braking tightens the line without abrupt spinning. F5 telemetry now tags `unified_tires_v2` and appends signed forward/rightward forces for all four tires. Keep this branch separate until those drives feel right.
+
 ### Manual entry, movable doors and ignition
 
 **Mouse 1 (left-click) / R1** interacts with the aimed part. For a door, hold the button and move the camera horizontally to swing it. Release to let it settle at an intermediate angle, or hold without moving the camera to pull it shut. Travel is limited by the hinge stops; momentum, damping and gravity determine the free motion. Hood and hatch still use click-to-open/close assistance.
@@ -36,7 +50,7 @@ These are calculated road speeds with the clutch locked and no tire slip, not au
 
 If using an assigned custom VehicleSpec asset, copy the five ratios above into its Forward Ratios list. Run `BaselineMatchesRequestedRedlineShiftSpeeds` and the existing PlayMode launch/lock checks. The numerical targets are verified independently of tire slip; Unity driving still needs validation.
 
-### High-speed FWD response
+### Previous high-speed FWD response (superseded on this branch)
 
 The added axle-balance tuning is inactive up to **30 mph**, then blends smoothly to its full effect at **50 mph**. It reduces front lateral capacity relative to the rear, with additional front reduction under positive drive demand. The intent is steady understeer and more front-end push on power, while preserving the previous low-speed balance.
 
@@ -50,7 +64,7 @@ Widened the Corkscrew bends after a full-mesh check found an inside-lane triangl
 
 The circuit PlayMode test now casts through all circuit colliders across five lane positions, rather than checking only whether the asphalt collider exists. It detects dirt or shoulder triangles above the road. Restart Play mode after pulling so the procedural circuit rebuilds. This is a geometry correction; the vehicle tune is unchanged. Unity runtime verification is still required.
 
-### Stronger handling and gearing tune
+### Previous handling and gearing tune (historical)
 
 This iteration makes a deliberate, larger change after the first grip correction still felt too loose:
 

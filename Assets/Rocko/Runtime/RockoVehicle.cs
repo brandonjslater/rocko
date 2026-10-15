@@ -38,6 +38,9 @@ namespace Rocko
         public bool ClutchLocked { get { return Gear != 0 && !Shifting && ClutchEngagement > 0.95f && Mathf.Abs(RPM - ShaftRPM()) < 80f; } }
         public string Surface { get; private set; } = "Asphalt";
         public string Notice { get; private set; } = "Select 1st with Shift. W to accelerate.";
+        private readonly Vector3[] contactAxes = new Vector3[8];
+        private readonly Vector3[] contactArms = new Vector3[8];
+        private readonly Vector3[] inverseAngularArms = new Vector3[8];
         private float omega, throttle, steering, shiftTime, noticeTime, brakePedal, releasedClutch;
         private int pendingGear;
         private bool assistingLaunch = true;
@@ -161,6 +164,9 @@ namespace Rocko
                 WheelFrictionCurve forward = wheels[i].forwardFriction;
                 forward.stiffness = 0; // Longitudinal forces have exactly one owner: drivetrain. 🚗
                 wheels[i].forwardFriction = forward;
+                WheelFrictionCurve sideways = wheels[i].sidewaysFriction;
+                sideways.stiffness = 0; // 🚗 Both tire axes now belong to the shared solver.
+                wheels[i].sidewaysFriction = sideways;
 
                 if (grounded[i]) rollingForce += rolling * Mathf.Max(0, contacts[i].force);
                 // 🚗 Only the brake pedal and handbrake may command wheel brakes.
@@ -176,7 +182,16 @@ namespace Rocko
                 tireDirections[i] = grounded[i] ? contacts[i].forwardDir.normalized
                     : transform.TransformDirection(Quaternion.Euler(0, wheels[i].steerAngle, 0) * Vector3.forward);
                 Vector3 contact = grounded[i] ? contacts[i].point : wheels[i].transform.position;
-                drivetrain.ContactSpeed[i] = Vector3.Dot(Body.GetPointVelocity(contact), tireDirections[i]);
+                Vector3 right = grounded[i] ? Vector3.Cross(contacts[i].normal, tireDirections[i]).normalized
+                    : Vector3.Cross(transform.up, tireDirections[i]).normalized;
+                contactAxes[i] = tireDirections[i]; contactAxes[i + 4] = right;
+                contactArms[i] = Vector3.Cross(contact - Body.worldCenterOfMass, contactAxes[i]);
+                contactArms[i + 4] = Vector3.Cross(contact - Body.worldCenterOfMass, right);
+                Vector3 velocity = Body.GetPointVelocity(contact);
+                if (grounded[i] && contacts[i].collider.attachedRigidbody != null)
+                    velocity -= contacts[i].collider.attachedRigidbody.GetPointVelocity(contact);
+                drivetrain.ContactSpeed[i] = Vector3.Dot(velocity, tireDirections[i]);
+                drivetrain.LateralContactSpeed[i] = Vector3.Dot(velocity, right);
             }
             if (groundCount == 0) Surface = "Airborne";
             GroundedWheels = groundCount;
@@ -215,9 +230,8 @@ namespace Rocko
             SampledEngineRPM = omega * 30f / Mathf.PI;
             SampledShaftRPM = shaftOmega * 30f / Mathf.PI;
             ReflectedInertia = ReflectedLoadInertia(ratio);
-            for (int i = 0; i < 4; i++)
-                for (int j = 0; j < 4; j++)
-                    drivetrain.DirectionDot[i * 4 + j] = Vector3.Dot(tireDirections[i], tireDirections[j]);
+            PrepareContactResponse();
+            drivetrain.LateralStiffness = spec.lateralGripScale;
             drivetrain.Step(dt, netTorque, spec.engineInertia, spec.clutchCapacityNm * ClutchEngagement,
                 ratio, spec.drivelineEfficiency, Body.mass, spec.tireRadius);
             omega = (float)drivetrain.EngineOmega;
@@ -226,19 +240,12 @@ namespace Rocko
             MaxDrivenSlip = Mathf.Max(Mathf.Abs((float)drivetrain.Slip[0]), Mathf.Abs((float)drivetrain.Slip[1]));
             for (int i = 0; i < 4; i++)
             {
-                // Bounded grip blending avoids abruptly removing native lateral authority.
-                // This is an approximation across the separate PhysX lateral step, not a full combined tire solver.
-                WheelFrictionCurve lateral = wheels[i].sidewaysFriction;
-                double peakForce = drivetrain.NormalLoad[i] * drivetrain.Grip[i] * 1.03;
-                double frontCapacity = (drivetrain.NormalLoad[0]*drivetrain.Grip[0] +
-                    drivetrain.NormalLoad[1]*drivetrain.Grip[1])*1.03;
-                double driveUsage = Mathf.Max(0, AxleTorqueNm) /
-                    System.Math.Max(1, frontCapacity*spec.tireRadius);
-                double axleBalance = DrivingFeel.FwdBalance(i<2, ForwardSpeed, driveUsage, brake, -LongitudinalG);
-                lateral.stiffness = (float)(drivetrain.Grip[i] * spec.lateralGripScale * axleBalance * DrivingFeel.LateralGrip(
-                    drivetrain.ForceImpulse[i] / dt, peakForce));
-                wheels[i].sidewaysFriction = lateral;
-                if (grounded[i]) Body.AddForceAtPosition(tireDirections[i] * (float)(drivetrain.ForceImpulse[i] / dt), contacts[i].point);
+                if (grounded[i])
+                {
+                    Vector3 force = contactAxes[i] * (float)(drivetrain.ForceImpulse[i] / dt)
+                        + contactAxes[i + 4] * (float)(drivetrain.LateralImpulse[i] / dt);
+                    Body.AddForceAtPosition(force, contacts[i].point);
+                }
                 wheelAngles[i] = Mathf.Repeat(wheelAngles[i] + WheelRPM(i) * 6f * dt, 360f);
             }
             if (EngineRunning && RPM < 450) { EngineRunning = false; SetNotice("Engine stalled · hold the ignition key with neutral selected or clutch down."); }
@@ -252,6 +259,49 @@ namespace Rocko
             LongitudinalG = Mathf.Lerp(LongitudinalG, Vector3.Dot(acceleration, transform.forward) / 9.80665f, 1 - Mathf.Exp(-dt * 8));
             LateralG = Mathf.Lerp(LateralG, Vector3.Dot(acceleration, transform.right) / 9.80665f, 1 - Mathf.Exp(-dt * 8));
             previousVelocity = v;
+        }
+
+        //
+        // @description - Read the sampled shared friction limit used for the last tire solve
+        // @param {int} wheel - Wheel index from zero to three
+        // @return {float} - Peak combined contact force in N
+        //
+        public float TireCapacity(int wheel)
+        {
+            return (float)(drivetrain.NormalLoad[wheel] * drivetrain.Grip[wheel] * 1.03);
+        }
+
+        //
+        // @description - Read the applied mean tire force for telemetry and integration checks
+        // @param {int} wheel - Wheel index from zero to three
+        // @param {bool} lateral - True for sideways force, false for drive/braking force
+        // @return {float} - Signed force in N during the last physics step
+        //
+        public float TireForce(int wheel, bool lateral)
+        {
+            return (float)((lateral ? drivetrain.LateralImpulse[wheel] : drivetrain.ForceImpulse[wheel]) / Time.fixedDeltaTime);
+        }
+
+        //
+        // @description - Build the shared contact effective-mass matrix including yaw, pitch and roll
+        // @return {Void} - Predicts each contact's response to forces at all four tires
+        //
+        private void PrepareContactResponse()
+        {
+            Quaternion principal = Body.rotation * Body.inertiaTensorRotation;
+            Quaternion inverse = Quaternion.Inverse(principal);
+            Vector3 inertia = Body.inertiaTensor;
+            for (int j = 0; j < 8; j++)
+            {
+                Vector3 arm = inverse * contactArms[j];
+                inverseAngularArms[j] = principal * new Vector3(arm.x / Mathf.Max(0.001f, inertia.x),
+                    arm.y / Mathf.Max(0.001f, inertia.y), arm.z / Mathf.Max(0.001f, inertia.z));
+            }
+            for (int i = 0; i < 8; i++)
+                for (int j = 0; j < 8; j++)
+                    drivetrain.ContactResponse[i * 8 + j] = Vector3.Dot(contactAxes[i], contactAxes[j]) / Body.mass
+                        + Vector3.Dot(contactArms[i], inverseAngularArms[j]);
+            drivetrain.UseContactResponse = true;
         }
 
         //
